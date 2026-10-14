@@ -21,6 +21,7 @@ model Empresa {
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
   empleados Empleado[]
+  eventos   EventoEmpresa[]
 
   @@index([activo])
   @@map("empresas")
@@ -49,4 +50,43 @@ model Empleado {
   @@index([empresaId])
   @@index([apellidos, nombres])
   @@map("empleados")
+}
+
+enum EventoEstado {
+  BORRADOR
+  ACTIVO
+  FINALIZADO
+  CANCELADO
+}
+
+model Evento {
+  id          String       @id @default(uuid()) @db.Uuid
+  codigo      String       @unique @db.VarChar(20)
+  nombre      String       @db.VarChar(150)
+  descripcion String?      @db.VarChar(1000)
+  ubicacion   String?      @db.VarChar(200)
+  fechaInicio DateTime     @map("fecha_inicio")
+  fechaFin    DateTime     @map("fecha_fin")
+  estado      EventoEstado @default(BORRADOR)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  empresas EventoEmpresa[]
+
+  @@index([estado])
+  @@index([fechaInicio])
+  @@map("eventos")
+}
+
+model EventoEmpresa {
+  eventoId  String   @map("evento_id") @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  evento  Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@id([eventoId, empresaId])
+  @@index([empresaId])
+  @@map("evento_empresas")
 }
