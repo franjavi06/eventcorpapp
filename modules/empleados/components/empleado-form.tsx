@@ -132,11 +132,19 @@ export function EmpleadoForm({
             <Input id="puesto" {...register("puesto")} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="claseNomina">Clase de nómina</FieldLabel>
+            <FieldLabel htmlFor="zona">Zona</FieldLabel>
             <Input
-              id="claseNomina"
-              placeholder="MENSUAL, SEMANAL…"
-              {...register("claseNomina")}
+              id="zona"
+              placeholder="CENTRO, ORIENTE…"
+              {...register("zona")}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="clasificacion">Clasificación</FieldLabel>
+            <Input
+              id="clasificacion"
+              placeholder="OPERATIVO, GERENCIAL…"
+              {...register("clasificacion")}
             />
           </Field>
           <Field>

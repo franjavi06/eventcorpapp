@@ -37,6 +37,7 @@ export async function EmpleadosTable({ query }: { query: EmpleadoListQuery }) {
           <TableHead>Empresa</TableHead>
           <TableHead>Correo</TableHead>
           <TableHead>Departamento</TableHead>
+          <TableHead>Zona</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead className="text-right">Acciones</TableHead>
         </TableRow>
@@ -53,6 +54,7 @@ export async function EmpleadosTable({ query }: { query: EmpleadoListQuery }) {
             </TableCell>
             <TableCell>{empleado.correo}</TableCell>
             <TableCell>{empleado.departamento ?? "—"}</TableCell>
+            <TableCell>{empleado.zona ?? "—"}</TableCell>
             <TableCell>
               {empleado.activo ? (
                 <Badge>Activo</Badge>

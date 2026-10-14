@@ -19,7 +19,8 @@ export const empleadoCreateSchema = z.object({
   correo: z.string().trim().max(200).toLowerCase().pipe(z.email("Correo inválido")),
   departamento: optionalText(100),
   puesto: optionalText(100),
-  claseNomina: optionalText(30),
+  zona: optionalText(100),
+  clasificacion: optionalText(50),
   fechaIngreso: z.coerce.date(),
 });
 

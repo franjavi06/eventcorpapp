@@ -36,7 +36,8 @@ model Empleado {
   correo         String    @unique @db.VarChar(200)
   departamento   String?   @db.VarChar(100)
   puesto         String?   @db.VarChar(100)
-  claseNomina    String?   @map("clase_nomina") @db.VarChar(30)
+  zona           String?   @db.VarChar(100)
+  clasificacion  String?   @db.VarChar(50)
   fechaIngreso   DateTime  @map("fecha_ingreso") @db.Date
   activo         Boolean   @default(true)
   createdAt      DateTime  @default(now()) @map("created_at")

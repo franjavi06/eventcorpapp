@@ -22,7 +22,8 @@ function empleadoInput(empresaId: string, overrides = {}) {
     correo: "ana@example.com",
     departamento: "VENTAS",
     puesto: "Ejecutiva",
-    claseNomina: "MENSUAL",
+    zona: "CENTRO",
+    clasificacion: "OPERATIVO",
     fechaIngreso: new Date("2020-01-15"),
     ...overrides,
   };

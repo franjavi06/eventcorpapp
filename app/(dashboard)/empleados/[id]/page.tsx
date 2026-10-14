@@ -48,7 +48,8 @@ async function EmpleadoDetail({
           correo: empleado.correo,
           departamento: empleado.departamento ?? "",
           puesto: empleado.puesto ?? "",
-          claseNomina: empleado.claseNomina ?? "",
+          zona: empleado.zona ?? "",
+          clasificacion: empleado.clasificacion ?? "",
           fechaIngreso: empleado.fechaIngreso.toISOString().slice(0, 10),
         }}
       />
