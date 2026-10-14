@@ -46,6 +46,8 @@ model Empleado {
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
+  participaciones EventoParticipante[]
+
   @@unique([empresaId, codigo])
   @@index([empresaId])
   @@index([apellidos, nombres])
@@ -86,7 +88,42 @@ model EventoEmpresa {
   evento  Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
+  participantes EventoParticipante[]
+
   @@id([eventoId, empresaId])
   @@index([empresaId])
   @@map("evento_empresas")
+}
+
+model EventoParticipante {
+  id               String    @id @default(uuid()) @db.Uuid
+  eventoId         String    @map("evento_id") @db.Uuid
+  empresaId        String    @map("empresa_id") @db.Uuid
+  empleadoId       String    @map("empleado_id") @db.Uuid
+  participaSorteos Boolean   @default(true) @map("participa_sorteos")
+  exclusionMotivo  String?   @map("exclusion_motivo") @db.VarChar(300)
+  exclusionAt      DateTime? @map("exclusion_at")
+  exclusionPor     String?   @map("exclusion_por") @db.VarChar(150)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  eventoEmpresa EventoEmpresa @relation(fields: [eventoId, empresaId], references: [eventoId, empresaId], onDelete: Restrict)
+  empleado      Empleado      @relation(fields: [empleadoId], references: [id])
+  asistencia    Asistencia?
+
+  @@unique([eventoId, empleadoId])
+  @@index([eventoId, participaSorteos])
+  @@index([empleadoId])
+  @@map("evento_participantes")
+}
+
+model Asistencia {
+  id                   String   @id @default(uuid()) @db.Uuid
+  eventoParticipanteId String   @unique @map("evento_participante_id") @db.Uuid
+  registradoAt         DateTime @default(now()) @map("registrado_at")
+  registradoPor        String?  @map("registrado_por") @db.VarChar(150)
+
+  participante EventoParticipante @relation(fields: [eventoParticipanteId], references: [id], onDelete: Restrict)
+
+  @@map("asistencias")
 }

@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { ClipboardCheck, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime, toDateTimeLocal } from "@/lib/format";
@@ -60,6 +63,25 @@ async function EventoDetail({
         asociadas={evento.empresas.map((ee) => ee.empresa)}
         disponibles={disponibles}
       />
+
+      <Separator />
+
+      <div className="flex gap-3">
+        <Link
+          href={`/eventos/${evento.id}/participantes`}
+          className={buttonVariants({ variant: "outline" })}
+        >
+          <Users className="size-4" />
+          Participantes
+        </Link>
+        <Link
+          href={`/eventos/${evento.id}/check-in`}
+          className={buttonVariants({ variant: "outline" })}
+        >
+          <ClipboardCheck className="size-4" />
+          Check-in
+        </Link>
+      </div>
     </>
   );
 }

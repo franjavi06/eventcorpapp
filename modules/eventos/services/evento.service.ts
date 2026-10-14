@@ -1,6 +1,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
-import { isRecordNotFound, isUniqueViolation } from "@/lib/prisma-errors";
+import {
+  isForeignKeyViolation,
+  isRecordNotFound,
+  isUniqueViolation,
+} from "@/lib/prisma-errors";
 import { empresaRepository } from "@/modules/empresas/repositories/empresa.repository";
 import { eventoRepository } from "@/modules/eventos/repositories/evento.repository";
 import {
@@ -125,6 +129,11 @@ export async function removeEmpresaFromEvento(eventoId: string, empresaId: strin
   } catch (error) {
     if (isRecordNotFound(error)) {
       throw new NotFoundError("La empresa no está asociada a este evento");
+    }
+    if (isForeignKeyViolation(error)) {
+      throw new ConflictError(
+        "No se puede desasociar: la empresa tiene participantes registrados en el evento",
+      );
     }
     throw error;
   }
