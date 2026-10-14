@@ -1,0 +1,51 @@
+// EventCorpApp — esquema Prisma 7
+// La URL de conexión vive en prisma.config.ts (datasource.url), no aquí.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Empresa {
+  id            String     @id @default(uuid()) @db.Uuid
+  codigo        String     @unique @db.VarChar(20)
+  nombre        String     @db.VarChar(150)
+  clasificacion String?    @db.VarChar(50)
+  ubicacion     String?    @db.VarChar(200)
+  activo        Boolean    @default(true)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  empleados Empleado[]
+
+  @@index([activo])
+  @@map("empresas")
+}
+
+model Empleado {
+  id             String    @id @default(uuid()) @db.Uuid
+  empresaId      String    @map("empresa_id") @db.Uuid
+  codigo         String    @db.VarChar(20)
+  identificacion String?   @unique @db.VarChar(30)
+  nombres        String    @db.VarChar(100)
+  apellidos      String    @db.VarChar(100)
+  correo         String    @unique @db.VarChar(200)
+  departamento   String?   @db.VarChar(100)
+  puesto         String?   @db.VarChar(100)
+  claseNomina    String?   @map("clase_nomina") @db.VarChar(30)
+  fechaIngreso   DateTime  @map("fecha_ingreso") @db.Date
+  activo         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@index([apellidos, nombres])
+  @@map("empleados")
+}
