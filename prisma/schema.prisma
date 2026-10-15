@@ -73,8 +73,9 @@ model Evento {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  empresas EventoEmpresa[]
-  sorteos  Sorteo[]
+  empresas    EventoEmpresa[]
+  sorteos     Sorteo[]
+  ejecuciones SorteoEjecucion[]
 
   @@index([estado])
   @@index([fechaInicio])
@@ -111,6 +112,7 @@ model EventoParticipante {
   eventoEmpresa EventoEmpresa @relation(fields: [eventoId, empresaId], references: [eventoId, empresaId], onDelete: Restrict)
   empleado      Empleado      @relation(fields: [empleadoId], references: [id])
   asistencia    Asistencia?
+  ganadores     SorteoGanador[]
 
   @@unique([eventoId, empleadoId])
   @@index([eventoId, participaSorteos])
@@ -161,8 +163,9 @@ model Sorteo {
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
 
-  evento Evento       @relation(fields: [eventoId], references: [id], onDelete: Cascade)
-  reglas SorteoRegla[]
+  evento      Evento            @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  reglas      SorteoRegla[]
+  ejecuciones SorteoEjecucion[]
 
   @@index([eventoId, estado])
   @@map("sorteos")
@@ -184,4 +187,46 @@ model SorteoRegla {
 
   @@index([sorteoId, activo])
   @@map("sorteo_reglas")
+}
+
+enum SorteoEjecucionEstado {
+  COMPLETADA
+  FALLIDA
+}
+
+model SorteoEjecucion {
+  id                 String                @id @default(uuid()) @db.Uuid
+  sorteoId           String                @map("sorteo_id") @db.Uuid
+  eventoId           String                @map("evento_id") @db.Uuid
+  estado             SorteoEjecucionEstado
+  cantidadSolicitada Int                   @map("cantidad_solicitada")
+  totalCandidatos    Int                   @map("total_candidatos")
+  reglasSnapshot     Json                  @map("reglas_snapshot")
+  candidatosSnapshot Json                  @map("candidatos_snapshot")
+  error              String?               @db.VarChar(500)
+  ejecutadoAt        DateTime              @default(now()) @map("ejecutado_at")
+  ejecutadoPor       String?               @map("ejecutado_por") @db.VarChar(150)
+
+  sorteo    Sorteo          @relation(fields: [sorteoId], references: [id], onDelete: Cascade)
+  evento    Evento          @relation(fields: [eventoId], references: [id])
+  ganadores SorteoGanador[]
+
+  @@index([sorteoId, estado])
+  @@index([eventoId])
+  @@map("sorteo_ejecuciones")
+}
+
+model SorteoGanador {
+  id          String   @id @default(uuid()) @db.Uuid
+  ejecucionId String   @map("ejecucion_id") @db.Uuid
+  eventoId    String   @map("evento_id") @db.Uuid
+  empleadoId  String   @map("empleado_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ejecucion    SorteoEjecucion    @relation(fields: [ejecucionId], references: [id], onDelete: Restrict)
+  participante EventoParticipante @relation(fields: [eventoId, empleadoId], references: [eventoId, empleadoId], onDelete: Restrict)
+
+  @@unique([eventoId, empleadoId])
+  @@index([ejecucionId])
+  @@map("sorteo_ganadores")
 }

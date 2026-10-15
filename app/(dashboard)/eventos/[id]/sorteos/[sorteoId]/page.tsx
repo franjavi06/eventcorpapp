@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { sorteoIdParamsSchema } from "@/modules/sorteos/schemas/sorteo.schema";
 import { getSorteo } from "@/modules/sorteos/services/sorteo.service";
 import { ElegiblesPreview } from "@/modules/sorteos/components/elegibles-preview";
+import { EjecucionPanel } from "@/modules/sorteos/components/ejecucion-panel";
+import { EjecucionesHistorial } from "@/modules/sorteos/components/ejecuciones-historial";
 import { ReglaBuilder } from "@/modules/sorteos/components/regla-builder";
 import { SorteoForm } from "@/modules/sorteos/components/sorteo-form";
 
@@ -57,6 +59,15 @@ async function SorteoDetailContent({
       />
 
       <ElegiblesPreview eventoId={sorteo.eventoId} sorteoId={sorteo.id} />
+
+      <EjecucionPanel
+        eventoId={sorteo.eventoId}
+        sorteoId={sorteo.id}
+        estado={sorteo.estado}
+        cantidadGanadores={sorteo.cantidadGanadores}
+      />
+
+      <EjecucionesHistorial sorteoId={sorteo.id} />
     </div>
   );
 }
