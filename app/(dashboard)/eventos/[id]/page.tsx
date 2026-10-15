@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ClipboardCheck, Users } from "lucide-react";
+import { ClipboardCheck, Gift, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -80,6 +80,13 @@ async function EventoDetail({
         >
           <ClipboardCheck className="size-4" />
           Check-in
+        </Link>
+        <Link
+          href={`/eventos/${evento.id}/sorteos`}
+          className={buttonVariants({ variant: "outline" })}
+        >
+          <Gift className="size-4" />
+          Sorteos
         </Link>
       </div>
     </>

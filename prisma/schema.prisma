@@ -74,6 +74,7 @@ model Evento {
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   empresas EventoEmpresa[]
+  sorteos  Sorteo[]
 
   @@index([estado])
   @@index([fechaInicio])
@@ -126,4 +127,61 @@ model Asistencia {
   participante EventoParticipante @relation(fields: [eventoParticipanteId], references: [id], onDelete: Restrict)
 
   @@map("asistencias")
+}
+
+enum SorteoEstado {
+  BORRADOR
+  ACTIVO
+  FINALIZADO
+  CANCELADO
+}
+
+enum ReglaEntidad {
+  EMPRESA
+  EMPLEADO
+}
+
+enum ReglaOperador {
+  IGUAL
+  DISTINTO
+  CONTIENE
+  ANTES_DE
+  DESPUES_DE
+}
+
+model Sorteo {
+  id                    String       @id @default(uuid()) @db.Uuid
+  eventoId              String       @map("evento_id") @db.Uuid
+  nombre                String       @db.VarChar(150)
+  descripcion           String?      @db.VarChar(500)
+  cantidadGanadores     Int          @map("cantidad_ganadores")
+  orden                 Int          @default(0)
+  estado                SorteoEstado @default(BORRADOR)
+  asistenciaObligatoria Boolean      @default(true) @map("asistencia_obligatoria")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+
+  evento Evento       @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  reglas SorteoRegla[]
+
+  @@index([eventoId, estado])
+  @@map("sorteos")
+}
+
+model SorteoRegla {
+  id        String        @id @default(uuid()) @db.Uuid
+  sorteoId  String        @map("sorteo_id") @db.Uuid
+  entidad   ReglaEntidad
+  campo     String        @db.VarChar(50)
+  operador  ReglaOperador
+  valor     String        @db.VarChar(300)
+  orden     Int           @default(0)
+  activo    Boolean       @default(true)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  sorteo Sorteo @relation(fields: [sorteoId], references: [id], onDelete: Cascade)
+
+  @@index([sorteoId, activo])
+  @@map("sorteo_reglas")
 }
