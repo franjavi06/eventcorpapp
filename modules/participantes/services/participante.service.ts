@@ -5,6 +5,7 @@ import {
   isRecordNotFound,
   isUniqueViolation,
 } from "@/lib/prisma-errors";
+import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
 import { eventoRepository } from "@/modules/eventos/repositories/evento.repository";
 import { participanteRepository } from "@/modules/participantes/repositories/participante.repository";
 import {
@@ -100,11 +101,19 @@ export async function addParticipante(eventoId: string, input: unknown) {
   }
 
   try {
-    return await participanteRepository.create({
+    const participante = await participanteRepository.create({
       eventoId,
       empresaId: empleado.empresaId,
       empleadoId,
     });
+    await registrarAuditoria({
+      eventoId,
+      entidad: "EventoParticipante",
+      entidadId: participante.id,
+      accion: "AGREGAR_PARTICIPANTE",
+      despues: { empleadoId, empresaId: empleado.empresaId },
+    });
+    return participante;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
@@ -139,12 +148,26 @@ export async function excluirDeSorteos(
     throw new ConflictError("El participante ya está excluido de los sorteos");
   }
 
-  return participanteRepository.update(participante.id, {
+  const actualizado = await participanteRepository.update(participante.id, {
     participaSorteos: false,
     exclusionMotivo: motivo,
     exclusionAt: new Date(),
     exclusionPor: responsable,
   });
+  await registrarAuditoria({
+    eventoId,
+    entidad: "EventoParticipante",
+    entidadId: participante.id,
+    accion: "EXCLUIR_SORTEOS",
+    actor: responsable,
+    antes: { participaSorteos: true },
+    despues: {
+      participaSorteos: false,
+      exclusionMotivo: motivo,
+      exclusionPor: responsable,
+    },
+  });
+  return actualizado;
 }
 
 export async function checkIn(eventoId: string, input: unknown) {
@@ -162,6 +185,20 @@ export async function checkIn(eventoId: string, input: unknown) {
       const asistencia = await tx.asistencia.create({
         data: { eventoParticipanteId: participante.id },
       });
+      await registrarAuditoria(
+        {
+          eventoId,
+          entidad: "Asistencia",
+          entidadId: asistencia.id,
+          accion: "CHECK_IN",
+          despues: {
+            empleadoId,
+            participanteId: participante.id,
+            registradoAt: asistencia.registradoAt.toISOString(),
+          },
+        },
+        tx,
+      );
       return { participanteId: participante.id, asistencia };
     });
   } catch (error) {
@@ -187,6 +224,16 @@ export async function undoCheckIn(eventoId: string, empleadoId: string) {
   }
   try {
     await participanteRepository.deleteAsistencia(participante.id);
+    await registrarAuditoria({
+      eventoId,
+      entidad: "Asistencia",
+      entidadId: participante.id,
+      accion: "ANULAR_CHECK_IN",
+      antes: {
+        empleadoId,
+        registradoAt: participante.asistencia?.registradoAt.toISOString(),
+      },
+    });
     return { removed: true };
   } catch (error) {
     if (isRecordNotFound(error)) {
@@ -210,6 +257,13 @@ export async function removeParticipante(eventoId: string, empleadoId: string) {
     );
   }
   await participanteRepository.remove(participante.id);
+  await registrarAuditoria({
+    eventoId,
+    entidad: "EventoParticipante",
+    entidadId: participante.id,
+    accion: "QUITAR_PARTICIPANTE",
+    antes: { empleadoId, participaSorteos: participante.participaSorteos },
+  });
   return { removed: true };
 }
 

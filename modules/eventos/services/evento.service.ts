@@ -5,6 +5,7 @@ import {
   isRecordNotFound,
   isUniqueViolation,
 } from "@/lib/prisma-errors";
+import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
 import { empresaRepository } from "@/modules/empresas/repositories/empresa.repository";
 import { eventoRepository } from "@/modules/eventos/repositories/evento.repository";
 import {
@@ -49,7 +50,15 @@ export async function getEvento(id: string) {
 export async function createEvento(input: unknown) {
   const data = eventoCreateSchema.parse(input);
   try {
-    return await eventoRepository.create(data);
+    const evento = await eventoRepository.create(data);
+    await registrarAuditoria({
+      eventoId: evento.id,
+      entidad: "Evento",
+      entidadId: evento.id,
+      accion: "CREAR",
+      despues: { codigo: evento.codigo, nombre: evento.nombre, estado: evento.estado },
+    });
+    return evento;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
@@ -78,7 +87,31 @@ export async function updateEvento(id: string, input: unknown) {
   }
 
   try {
-    return await eventoRepository.update(id, data);
+    const antes = await eventoRepository.findById(id);
+    const evento = await eventoRepository.update(id, data);
+    await registrarAuditoria({
+      eventoId: id,
+      entidad: "Evento",
+      entidadId: id,
+      accion: "ACTUALIZAR",
+      antes: antes
+        ? {
+            codigo: antes.codigo,
+            nombre: antes.nombre,
+            estado: antes.estado,
+            fechaInicio: antes.fechaInicio.toISOString(),
+            fechaFin: antes.fechaFin.toISOString(),
+          }
+        : null,
+      despues: {
+        codigo: evento.codigo,
+        nombre: evento.nombre,
+        estado: evento.estado,
+        fechaInicio: evento.fechaInicio.toISOString(),
+        fechaFin: evento.fechaFin.toISOString(),
+      },
+    });
+    return evento;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
@@ -112,7 +145,15 @@ export async function addEmpresaToEvento(eventoId: string, input: unknown) {
   }
 
   try {
-    return await eventoRepository.addEmpresa(eventoId, empresaId);
+    const asociacion = await eventoRepository.addEmpresa(eventoId, empresaId);
+    await registrarAuditoria({
+      eventoId,
+      entidad: "EventoEmpresa",
+      entidadId: empresaId,
+      accion: "ASOCIAR_EMPRESA",
+      despues: { empresaCodigo: empresa.codigo, empresaNombre: empresa.nombre },
+    });
+    return asociacion;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
@@ -125,7 +166,15 @@ export async function addEmpresaToEvento(eventoId: string, input: unknown) {
 
 export async function removeEmpresaFromEvento(eventoId: string, empresaId: string) {
   try {
-    return await eventoRepository.removeEmpresa(eventoId, empresaId);
+    const result = await eventoRepository.removeEmpresa(eventoId, empresaId);
+    await registrarAuditoria({
+      eventoId,
+      entidad: "EventoEmpresa",
+      entidadId: empresaId,
+      accion: "DESASOCIAR_EMPRESA",
+      antes: { empresaId },
+    });
+    return result;
   } catch (error) {
     if (isRecordNotFound(error)) {
       throw new NotFoundError("La empresa no está asociada a este evento");

@@ -20,5 +20,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/empleados", label: "Empleados", icon: Users, enabled: true },
   { href: "/eventos", label: "Eventos", icon: CalendarDays, enabled: true },
   { href: "/sorteos", label: "Sorteos", icon: Gift, enabled: false },
-  { href: "/reportes", label: "Reportes", icon: BarChart3, enabled: false },
+  { href: "/reportes", label: "Reportes", icon: BarChart3, enabled: true },
 ];

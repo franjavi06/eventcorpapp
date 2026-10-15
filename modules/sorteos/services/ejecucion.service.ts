@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
+import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
 import { elegiblesWhere } from "@/modules/sorteos/services/sorteo.service";
 import { sorteoRepository } from "@/modules/sorteos/repositories/sorteo.repository";
 
@@ -85,13 +86,21 @@ export async function ejecutarSorteo(
     };
 
     if (candidatos.length < sorteo.cantidadGanadores) {
+      const error = `Candidatos insuficientes: se requieren ${sorteo.cantidadGanadores} y hay ${candidatos.length}`;
       const fallida = await tx.sorteoEjecucion.create({
-        data: {
-          ...base,
-          estado: "FALLIDA",
-          error: `Candidatos insuficientes: se requieren ${sorteo.cantidadGanadores} y hay ${candidatos.length}`,
-        },
+        data: { ...base, estado: "FALLIDA", error },
       });
+      await registrarAuditoria(
+        {
+          eventoId: sorteo.eventoId,
+          entidad: "SorteoEjecucion",
+          entidadId: fallida.id,
+          accion: "EJECUCION_FALLIDA",
+          actor: ejecutadoPor,
+          despues: { sorteoId, error, totalCandidatos: candidatos.length },
+        },
+        tx,
+      );
       return {
         ejecucionId: fallida.id,
         estado: "FALLIDA" as const,
@@ -121,6 +130,21 @@ export async function ejecutarSorteo(
       where: { id: sorteoId },
       data: { estado: "FINALIZADO" },
     });
+    await registrarAuditoria(
+      {
+        eventoId: sorteo.eventoId,
+        entidad: "SorteoEjecucion",
+        entidadId: ejecucion.id,
+        accion: "EJECUTAR_SORTEO",
+        actor: ejecutadoPor,
+        despues: {
+          sorteoId,
+          totalCandidatos: candidatos.length,
+          ganadores: seleccionados.map((c) => c.empleadoId),
+        },
+      },
+      tx,
+    );
 
     return {
       ejecucionId: ejecucion.id,

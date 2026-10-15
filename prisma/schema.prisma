@@ -230,3 +230,19 @@ model SorteoGanador {
   @@index([ejecucionId])
   @@map("sorteo_ganadores")
 }
+
+model Auditoria {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventoId  String?  @map("evento_id") @db.Uuid
+  entidad   String   @db.VarChar(50)
+  entidadId String?  @map("entidad_id") @db.VarChar(60)
+  accion    String   @db.VarChar(50)
+  actor     String?  @db.VarChar(150)
+  antes     Json?
+  despues   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([eventoId, createdAt])
+  @@index([entidad, entidadId])
+  @@map("auditoria")
+}

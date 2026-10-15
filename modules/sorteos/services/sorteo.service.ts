@@ -2,6 +2,7 @@ import type { Prisma, SorteoRegla } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { isRecordNotFound } from "@/lib/prisma-errors";
 import { prisma } from "@/lib/prisma";
+import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
 import { eventoRepository } from "@/modules/eventos/repositories/evento.repository";
 import { getCampoDef } from "@/modules/sorteos/lib/reglas-catalogo";
 import {
@@ -78,14 +79,49 @@ export async function getSorteo(id: string) {
 export async function createSorteo(eventoId: string, input: unknown) {
   const data = sorteoCreateSchema.parse(input);
   await assertEvento(eventoId);
-  return sorteoRepository.create({ ...data, eventoId });
+  const sorteo = await sorteoRepository.create({ ...data, eventoId });
+  await registrarAuditoria({
+    eventoId,
+    entidad: "Sorteo",
+    entidadId: sorteo.id,
+    accion: "CREAR",
+    despues: {
+      nombre: sorteo.nombre,
+      cantidadGanadores: sorteo.cantidadGanadores,
+      asistenciaObligatoria: sorteo.asistenciaObligatoria,
+      estado: sorteo.estado,
+    },
+  });
+  return sorteo;
 }
 
 export async function updateSorteo(id: string, input: unknown) {
   const data = sorteoUpdateSchema.parse(input);
   await assertSorteoEditable(id);
   try {
-    return await sorteoRepository.update(id, data);
+    const antes = await sorteoRepository.findById(id);
+    const sorteo = await sorteoRepository.update(id, data);
+    await registrarAuditoria({
+      eventoId: sorteo.eventoId,
+      entidad: "Sorteo",
+      entidadId: id,
+      accion: "ACTUALIZAR",
+      antes: antes
+        ? {
+            nombre: antes.nombre,
+            estado: antes.estado,
+            cantidadGanadores: antes.cantidadGanadores,
+            asistenciaObligatoria: antes.asistenciaObligatoria,
+          }
+        : null,
+      despues: {
+        nombre: sorteo.nombre,
+        estado: sorteo.estado,
+        cantidadGanadores: sorteo.cantidadGanadores,
+        asistenciaObligatoria: sorteo.asistenciaObligatoria,
+      },
+    });
+    return sorteo;
   } catch (error) {
     if (isRecordNotFound(error)) throw new NotFoundError("Sorteo no encontrado");
     throw error;
@@ -95,7 +131,15 @@ export async function updateSorteo(id: string, input: unknown) {
 export async function deleteSorteo(id: string) {
   await assertSorteoEditable(id);
   try {
+    const sorteo = await sorteoRepository.findById(id);
     await sorteoRepository.remove(id);
+    await registrarAuditoria({
+      eventoId: sorteo?.eventoId,
+      entidad: "Sorteo",
+      entidadId: id,
+      accion: "ELIMINAR",
+      antes: sorteo ? { nombre: sorteo.nombre, estado: sorteo.estado } : null,
+    });
     return { removed: true };
   } catch (error) {
     if (isRecordNotFound(error)) throw new NotFoundError("Sorteo no encontrado");
@@ -105,9 +149,23 @@ export async function deleteSorteo(id: string) {
 
 export async function addRegla(sorteoId: string, input: unknown) {
   const data = reglaSchema.parse(input);
-  await assertSorteo(sorteoId);
+  const sorteo = await assertSorteo(sorteoId);
   await assertSorteoEditable(sorteoId);
-  return reglaRepository.create({ ...data, sorteoId });
+  const regla = await reglaRepository.create({ ...data, sorteoId });
+  await registrarAuditoria({
+    eventoId: sorteo.eventoId,
+    entidad: "SorteoRegla",
+    entidadId: regla.id,
+    accion: "AGREGAR_REGLA",
+    despues: {
+      sorteoId,
+      entidad: regla.entidad,
+      campo: regla.campo,
+      operador: regla.operador,
+      valor: regla.valor,
+    },
+  });
+  return regla;
 }
 
 export async function updateRegla(reglaId: string, input: unknown) {
@@ -118,7 +176,27 @@ export async function updateRegla(reglaId: string, input: unknown) {
 
   // La regla resultante (mezcla actual + cambios) debe seguir siendo válida
   const merged = reglaSchema.parse({ ...actual, ...data });
-  return reglaRepository.update(reglaId, merged);
+  const regla = await reglaRepository.update(reglaId, merged);
+  const sorteo = await assertSorteo(actual.sorteoId);
+  await registrarAuditoria({
+    eventoId: sorteo.eventoId,
+    entidad: "SorteoRegla",
+    entidadId: regla.id,
+    accion: "ACTUALIZAR_REGLA",
+    antes: {
+      campo: actual.campo,
+      operador: actual.operador,
+      valor: actual.valor,
+      activo: actual.activo,
+    },
+    despues: {
+      campo: regla.campo,
+      operador: regla.operador,
+      valor: regla.valor,
+      activo: regla.activo,
+    },
+  });
+  return regla;
 }
 
 export async function removeRegla(reglaId: string) {
@@ -126,6 +204,20 @@ export async function removeRegla(reglaId: string) {
   if (actual) await assertSorteoEditable(actual.sorteoId);
   try {
     await reglaRepository.remove(reglaId);
+    if (actual) {
+      const sorteo = await assertSorteo(actual.sorteoId);
+      await registrarAuditoria({
+        eventoId: sorteo.eventoId,
+        entidad: "SorteoRegla",
+        entidadId: reglaId,
+        accion: "ELIMINAR_REGLA",
+        antes: {
+          campo: actual.campo,
+          operador: actual.operador,
+          valor: actual.valor,
+        },
+      });
+    }
     return { removed: true };
   } catch (error) {
     if (isRecordNotFound(error)) throw new NotFoundError("Regla no encontrada");

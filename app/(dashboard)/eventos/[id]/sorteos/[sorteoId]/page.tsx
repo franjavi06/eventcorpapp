@@ -23,8 +23,16 @@ async function SorteoDetailContent({
   const sorteo = await getSorteo(parsed.data.sorteoId).catch(() => null);
   if (!sorteo || sorteo.eventoId !== parsed.data.id) notFound();
 
+  const bloqueado = sorteo.ejecuciones.length > 0;
+
   return (
     <div className="space-y-6">
+      {bloqueado && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">
+          Este sorteo ya fue ejecutado. La configuración y las reglas están en
+          solo lectura.
+        </div>
+      )}
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">
           {sorteo.nombre}

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 /** Limpia las tablas de negocio respetando el orden de FKs. */
 export async function cleanDatabase() {
+  await prisma.auditoria.deleteMany();
   await prisma.sorteoGanador.deleteMany();
   await prisma.sorteoEjecucion.deleteMany();
   await prisma.sorteoRegla.deleteMany();

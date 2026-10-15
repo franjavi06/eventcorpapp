@@ -26,7 +26,11 @@ export const sorteoRepository = {
   findById(id: string) {
     return prisma.sorteo.findUnique({
       where: { id },
-      include: { ...sorteoInclude, evento: { select: { id: true, nombre: true, codigo: true } } },
+      include: {
+        ...sorteoInclude,
+        evento: { select: { id: true, nombre: true, codigo: true } },
+        ejecuciones: { where: { estado: "COMPLETADA" }, select: { id: true } },
+      },
     });
   },
 
