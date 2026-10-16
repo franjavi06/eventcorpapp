@@ -2,7 +2,6 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
-  Gift,
   LayoutDashboard,
   Users,
 } from "lucide-react";
@@ -19,6 +18,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/empresas", label: "Empresas", icon: Building2, enabled: true },
   { href: "/empleados", label: "Empleados", icon: Users, enabled: true },
   { href: "/eventos", label: "Eventos", icon: CalendarDays, enabled: true },
-  { href: "/sorteos", label: "Sorteos", icon: Gift, enabled: false },
   { href: "/reportes", label: "Reportes", icon: BarChart3, enabled: true },
 ];
