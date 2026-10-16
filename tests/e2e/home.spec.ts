@@ -12,9 +12,9 @@ test.describe("dashboard", () => {
       name: "Navegación principal",
     });
     await expect(nav.getByRole("link", { name: "Dashboard" })).toBeVisible();
-    await expect(nav.getByText("Empresas")).toBeVisible();
-    await expect(nav.getByText("Empleados")).toBeVisible();
-    await expect(nav.getByText("Eventos")).toBeVisible();
-    await expect(nav.getByText("Sorteos")).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Empresas" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Empleados" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Eventos" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Reportes" })).toBeVisible();
   });
 });

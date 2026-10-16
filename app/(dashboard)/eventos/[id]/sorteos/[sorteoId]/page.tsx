@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sorteoIdParamsSchema } from "@/modules/sorteos/schemas/sorteo.schema";
+import { listEjecuciones } from "@/modules/sorteos/services/ejecucion.service";
 import { getSorteo } from "@/modules/sorteos/services/sorteo.service";
 import { ElegiblesPreview } from "@/modules/sorteos/components/elegibles-preview";
 import { EjecucionPanel } from "@/modules/sorteos/components/ejecucion-panel";
@@ -22,6 +23,15 @@ async function SorteoDetailContent({
 
   const sorteo = await getSorteo(parsed.data.sorteoId).catch(() => null);
   if (!sorteo || sorteo.eventoId !== parsed.data.id) notFound();
+
+  const ejecuciones = await listEjecuciones(sorteo.id);
+  const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
+  const ganadoresIniciales =
+    completada?.ganadores.map((g) => ({
+      codigo: g.participante.empleado.codigo,
+      nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
+      empresa: g.participante.empleado.empresa.nombre,
+    })) ?? [];
 
   const bloqueado = sorteo.ejecuciones.length > 0;
 
@@ -71,8 +81,11 @@ async function SorteoDetailContent({
       <EjecucionPanel
         eventoId={sorteo.eventoId}
         sorteoId={sorteo.id}
+        nombre={sorteo.nombre}
+        descripcion={sorteo.descripcion}
         estado={sorteo.estado}
         cantidadGanadores={sorteo.cantidadGanadores}
+        ganadoresIniciales={ganadoresIniciales}
       />
 
       <EjecucionesHistorial sorteoId={sorteo.id} />

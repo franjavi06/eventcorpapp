@@ -11,14 +11,17 @@ export function AppNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-1 px-3" aria-label="Navegación principal">
+    <nav className="flex flex-col gap-1.5 px-4" aria-label="Navegación principal">
       {NAV_ITEMS.map(({ href, label, icon: Icon, enabled }) => {
-        const active = pathname === href;
+        const active =
+          href === "/"
+            ? pathname === "/"
+            : pathname === href || pathname.startsWith(`${href}/`);
         if (!enabled) {
           return (
             <span
               key={href}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/60"
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-muted-foreground/60"
               aria-disabled="true"
             >
               <Icon className="size-4" />
@@ -35,10 +38,10 @@ export function AppNav() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all",
               active
-                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             <Icon className="size-4" />

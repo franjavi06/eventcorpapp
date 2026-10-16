@@ -10,6 +10,7 @@ export const empresaRepository = {
     return prisma.empresa.findMany({
       ...args,
       orderBy: { nombre: "asc" },
+      include: { _count: { select: { empleados: true } } },
     });
   },
 

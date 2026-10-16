@@ -16,7 +16,7 @@ export const eventoRepository = {
     return prisma.evento.findMany({
       ...args,
       orderBy: [{ fechaInicio: "desc" }, { nombre: "asc" }],
-      include: { _count: { select: { empresas: true } } },
+      include: { _count: { select: { empresas: true, sorteos: true } } },
     });
   },
 
