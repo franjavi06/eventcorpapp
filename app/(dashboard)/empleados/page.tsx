@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
 import { EstadoFilter } from "@/components/shared/estado-filter";
 import { SearchForm } from "@/components/shared/search-form";
@@ -69,10 +69,19 @@ export default function EmpleadosPage({
             Colaboradores registrados por empresa
           </p>
         </div>
-        <Link href="/empleados/nuevo" className={buttonVariants()}>
-          <Plus className="size-4" />
-          Nuevo empleado
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/empleados/carga"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            <Upload className="size-4" />
+            Carga masiva
+          </Link>
+          <Link href="/empleados/nuevo" className={buttonVariants()}>
+            <Plus className="size-4" />
+            Nuevo empleado
+          </Link>
+        </div>
       </div>
 
       <Suspense fallback={<Skeleton className="h-80 w-full" />}>
