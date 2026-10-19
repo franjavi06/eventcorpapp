@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 const sorteoInclude = {
   reglas: { orderBy: [{ orden: "asc" }, { createdAt: "asc" }] },
-  _count: { select: { reglas: true } },
+  _count: { select: { reglas: true, ejecuciones: true } },
 } satisfies Prisma.SorteoInclude;
 
 export const sorteoRepository = {
