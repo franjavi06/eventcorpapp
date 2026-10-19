@@ -109,4 +109,15 @@ describe("importEmpleados", () => {
     });
     expect(emp?.fechaIngreso.toISOString().slice(0, 10)).toBe("2020-01-01");
   });
+
+  it("acepta fecha día/mes/año (formato es-ES)", async () => {
+    const r = await importEmpleados(empresaId, [
+      fila(2, { ...base("A"), fechaIngreso: "15/01/2020" }),
+    ]);
+    expect(r.importados).toBe(1);
+    const emp = await prisma.empleado.findFirst({
+      where: { empresaId, codigo: "COD-A" },
+    });
+    expect(emp?.fechaIngreso.toISOString().slice(0, 10)).toBe("2020-01-15");
+  });
 });

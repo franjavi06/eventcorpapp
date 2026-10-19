@@ -5,6 +5,7 @@ import {
   cellToValue,
   extraerFilas,
   normalizarEncabezado,
+  parseFechaCarga,
   serialExcelADate,
 } from "@/modules/empleados/lib/carga-columns";
 
@@ -52,6 +53,29 @@ describe("serialExcelADate", () => {
     expect(serialExcelADate(43831).toISOString().slice(0, 10)).toBe(
       "2020-01-01",
     );
+  });
+});
+
+describe("parseFechaCarga", () => {
+  const iso = (v: unknown) =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : v;
+
+  it("acepta formatos día-primero es-ES", () => {
+    expect(iso(parseFechaCarga("15/01/2020"))).toBe("2020-01-15");
+    expect(iso(parseFechaCarga("15-01-2020"))).toBe("2020-01-15");
+    expect(iso(parseFechaCarga("01.01.2020"))).toBe("2020-01-01");
+    expect(iso(parseFechaCarga("5/3/2020"))).toBe("2020-03-05");
+  });
+
+  it("convierte serial Excel como string", () => {
+    expect(iso(parseFechaCarga("43831"))).toBe("2020-01-01");
+  });
+
+  it("conserva Date y deja ISO para Zod", () => {
+    const d = new Date("2020-01-15T00:00:00Z");
+    expect(parseFechaCarga(d)).toBe(d);
+    expect(parseFechaCarga("2020-01-15")).toBe("2020-01-15");
+    expect(parseFechaCarga(undefined)).toBeUndefined();
   });
 });
 

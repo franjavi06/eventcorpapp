@@ -1,7 +1,7 @@
 import { ValidationError } from "@/lib/errors";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import {
-  serialExcelADate,
+  parseFechaCarga,
   type FilaCarga,
 } from "@/modules/empleados/lib/carga-columns";
 import { empleadoRepository } from "@/modules/empleados/repositories/empleado.repository";
@@ -35,12 +35,6 @@ function construirInput(
   empresaId: string,
   valores: FilaCarga["valores"],
 ): Record<string, unknown> {
-  const fecha = valores.fechaIngreso;
-  let fechaIngreso: unknown = fecha;
-  if (typeof fecha === "string" && /^\d+(\.\d+)?$/.test(fecha)) {
-    // Serial Excel leído como texto/numero
-    fechaIngreso = serialExcelADate(Number(fecha));
-  }
   return {
     empresaId,
     codigo: valores.codigo,
@@ -52,7 +46,7 @@ function construirInput(
     puesto: valores.puesto,
     zona: valores.zona,
     clasificacion: valores.clasificacion,
-    fechaIngreso,
+    fechaIngreso: parseFechaCarga(valores.fechaIngreso),
   };
 }
 

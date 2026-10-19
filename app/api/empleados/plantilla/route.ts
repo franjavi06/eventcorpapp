@@ -38,7 +38,7 @@ export async function GET() {
     for (const [i, h] of HEADERS.entries()) {
       sheet.getColumn(i + 1).width = Math.max(h.length + 4, 14);
     }
-    sheet.getCell("J2").numFmt = "yyyy-mm-dd";
+    sheet.getColumn(10).numFmt = "yyyy-mm-dd";
 
     const buffer = await workbook.xlsx.writeBuffer();
     return new Response(Buffer.from(buffer) as unknown as BodyInit, {

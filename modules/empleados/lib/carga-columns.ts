@@ -126,3 +126,25 @@ export function extraerFilas(worksheet: Worksheet): ResultadoFilas {
 export function serialExcelADate(serial: number): Date {
   return new Date(Math.round((serial - 25569) * 86400 * 1000));
 }
+
+/**
+ * Normaliza el valor de `fecha_ingreso` a Date cuando sea posible:
+ * - Date (celda Excel tipo fecha) → tal cual.
+ * - "dd/mm/yyyy", "dd-mm-yyyy", "dd.mm.yyyy" → día-primero (es-ES).
+ * - número o string numérico → serial Excel.
+ * - resto → se devuelve sin tocar (Zod valida ISO u otros formatos).
+ */
+export function parseFechaCarga(
+  valor: string | Date | undefined,
+): unknown {
+  if (valor == null) return valor;
+  if (valor instanceof Date) return valor;
+  const v = valor.trim();
+  const dmy = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/.exec(v);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+  }
+  if (/^\d+(\.\d+)?$/.test(v)) return serialExcelADate(Number(v));
+  return v;
+}
