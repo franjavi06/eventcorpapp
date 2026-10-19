@@ -1,14 +1,15 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { Play } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sorteoIdParamsSchema } from "@/modules/sorteos/schemas/sorteo.schema";
-import { listEjecuciones } from "@/modules/sorteos/services/ejecucion.service";
 import { getSorteo } from "@/modules/sorteos/services/sorteo.service";
 import { ElegiblesPreview } from "@/modules/sorteos/components/elegibles-preview";
-import { EjecucionPanel } from "@/modules/sorteos/components/ejecucion-panel";
 import { EjecucionesHistorial } from "@/modules/sorteos/components/ejecuciones-historial";
 import { ReglaBuilder } from "@/modules/sorteos/components/regla-builder";
 import { SorteoForm } from "@/modules/sorteos/components/sorteo-form";
@@ -23,15 +24,6 @@ async function SorteoDetailContent({
 
   const sorteo = await getSorteo(parsed.data.sorteoId).catch(() => null);
   if (!sorteo || sorteo.eventoId !== parsed.data.id) notFound();
-
-  const ejecuciones = await listEjecuciones(sorteo.id);
-  const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
-  const ganadoresIniciales =
-    completada?.ganadores.map((g) => ({
-      codigo: g.participante.empleado.codigo,
-      nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
-      empresa: g.participante.empleado.empresa.nombre,
-    })) ?? [];
 
   const bloqueado = sorteo.ejecuciones.length > 0;
 
@@ -78,15 +70,21 @@ async function SorteoDetailContent({
 
       <ElegiblesPreview eventoId={sorteo.eventoId} sorteoId={sorteo.id} />
 
-      <EjecucionPanel
-        eventoId={sorteo.eventoId}
-        sorteoId={sorteo.id}
-        nombre={sorteo.nombre}
-        descripcion={sorteo.descripcion}
-        estado={sorteo.estado}
-        cantidadGanadores={sorteo.cantidadGanadores}
-        ganadoresIniciales={ganadoresIniciales}
-      />
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 p-4">
+        <div>
+          <p className="font-semibold">Ruleta y premiación</p>
+          <p className="text-sm text-muted-foreground">
+            Ejecuta la tómbola y revela los ganadores en pantalla.
+          </p>
+        </div>
+        <Link
+          href={`/eventos/${sorteo.eventoId}/sorteos/${sorteo.id}/ejecutar`}
+          className={buttonVariants()}
+        >
+          <Play className="size-4" />
+          Ir a la ruleta
+        </Link>
+      </div>
 
       <EjecucionesHistorial sorteoId={sorteo.id} />
     </div>

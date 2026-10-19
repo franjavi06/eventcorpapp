@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   Gift,
   ListFilter,
+  Play,
   Settings2,
   Trophy,
 } from "lucide-react";
@@ -102,13 +103,20 @@ export async function SorteosTable({
               </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-end border-t pt-4">
+            <div className="mt-6 flex items-center justify-end gap-2 border-t pt-4">
               <Link
                 href={`/eventos/${eventoId}/sorteos/${s.id}`}
-                className={buttonVariants({ size: "sm" })}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 <Settings2 className="size-3.5" />
-                Ver sorteo
+                Configurar
+              </Link>
+              <Link
+                href={`/eventos/${eventoId}/sorteos/${s.id}/ejecutar`}
+                className={buttonVariants({ size: "sm" })}
+              >
+                <Play className="size-3.5" />
+                Ruleta
               </Link>
             </div>
           </div>

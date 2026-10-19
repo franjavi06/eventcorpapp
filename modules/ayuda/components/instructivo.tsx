@@ -203,9 +203,11 @@ const PASOS: Paso[] = [
         cumplen las condiciones en tiempo real.
       </>,
       <>
-        <strong>Ejecutar</strong>: el panel de ejecución anima la tómbola y
-        revela a los ganadores. Antes de sortear, el sistema valida que haya
-        suficientes candidatos.
+        <strong>Ejecutar</strong>: desde la tarjeta del sorteo pulsa{" "}
+        <strong>Ruleta</strong> (o desde su detalle,{" "}
+        <strong>Ir a la ruleta</strong>) para abrir la pantalla de ruleta y
+        premiación — pensada para proyectarse durante el evento. Antes de
+        sortear, el sistema valida que haya suficientes candidatos.
       </>,
       <>
         El <strong>historial de ejecuciones</strong> conserva cada ejecución
