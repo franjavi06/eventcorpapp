@@ -7,6 +7,7 @@ export type CampoCarga =
   | "nombres"
   | "apellidos"
   | "correo"
+  | "telefono"
   | "departamento"
   | "puesto"
   | "zona"
@@ -22,6 +23,8 @@ const HEADER_TO_FIELD: Record<string, CampoCarga> = {
   apellido: "apellidos",
   correo: "correo",
   email: "correo",
+  telefono: "telefono",
+  celular: "telefono",
   departamento: "departamento",
   puesto: "puesto",
   zona: "zona",
@@ -82,7 +85,6 @@ const REQUERIDAS: CampoCarga[] = [
   "codigo",
   "nombres",
   "apellidos",
-  "correo",
   "fechaIngreso",
 ];
 

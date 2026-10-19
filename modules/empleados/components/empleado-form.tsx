@@ -110,7 +110,7 @@ export function EmpleadoForm({
             <FieldError errors={errors.apellidos ? [errors.apellidos] : []} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="correo">Correo</FieldLabel>
+            <FieldLabel htmlFor="correo">Correo (opcional)</FieldLabel>
             <Input
               id="correo"
               type="email"
@@ -118,6 +118,15 @@ export function EmpleadoForm({
               {...register("correo")}
             />
             <FieldError errors={errors.correo ? [errors.correo] : []} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="telefono">Teléfono (opcional)</FieldLabel>
+            <Input
+              id="telefono"
+              placeholder="+1-809-555-1234"
+              {...register("telefono")}
+            />
+            <FieldError errors={errors.telefono ? [errors.telefono] : []} />
           </Field>
           <Field>
             <FieldLabel htmlFor="identificacion">Identificación</FieldLabel>

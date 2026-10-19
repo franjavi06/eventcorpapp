@@ -16,7 +16,17 @@ export const empleadoCreateSchema = z.object({
   identificacion: optionalText(30),
   nombres: z.string().trim().min(1, "Los nombres son obligatorios").max(100),
   apellidos: z.string().trim().min(1, "Los apellidos son obligatorios").max(100),
-  correo: z.string().trim().max(200).toLowerCase().pipe(z.email("Correo inválido")),
+  correo: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z
+      .string()
+      .trim()
+      .max(200)
+      .toLowerCase()
+      .pipe(z.email("Correo inválido"))
+      .nullish(),
+  ),
+  telefono: optionalText(30),
   departamento: optionalText(100),
   puesto: optionalText(100),
   zona: optionalText(100),

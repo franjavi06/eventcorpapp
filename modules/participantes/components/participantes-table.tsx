@@ -57,7 +57,7 @@ export async function ParticipantesTable({
                   {p.empleado.apellidos}, {p.empleado.nombres}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {p.empleado.correo}
+                  {p.empleado.correo ?? "—"}
                 </div>
               </TableCell>
               <TableCell className="text-sm">

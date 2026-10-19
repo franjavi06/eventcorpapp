@@ -15,7 +15,7 @@ type Candidato = {
   identificacion: string | null;
   nombres: string;
   apellidos: string;
-  correo: string;
+  correo: string | null;
   empresa: { id: string; codigo: string; nombre: string };
   participaciones: { id: string; asistencia: { id: string } | null }[];
 };

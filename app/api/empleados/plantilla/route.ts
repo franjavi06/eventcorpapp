@@ -8,6 +8,7 @@ const HEADERS = [
   "nombres",
   "apellidos",
   "correo",
+  "telefono",
   "departamento",
   "puesto",
   "zona",
@@ -21,6 +22,7 @@ const EJEMPLO = [
   "Juan",
   "Pérez",
   "juan.perez@empresa.com",
+  "+1-809-555-1234",
   "VENTAS",
   "Vendedor",
   "CENTRO",
@@ -38,7 +40,8 @@ export async function GET() {
     for (const [i, h] of HEADERS.entries()) {
       sheet.getColumn(i + 1).width = Math.max(h.length + 4, 14);
     }
-    sheet.getColumn(10).numFmt = "yyyy-mm-dd";
+    sheet.getColumn(HEADERS.indexOf("fecha_ingreso") + 1).numFmt =
+      "yyyy-mm-dd";
 
     const buffer = await workbook.xlsx.writeBuffer();
     return new Response(Buffer.from(buffer) as unknown as BodyInit, {

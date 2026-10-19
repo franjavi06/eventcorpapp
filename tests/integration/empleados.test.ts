@@ -63,6 +63,23 @@ describe("empleados service", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
+  it("permite correo y teléfono opcionales", async () => {
+    const acme = await createEmpresa(EMPRESA);
+    const sinCorreo = await createEmpleado(
+      empleadoInput(acme.id, { correo: null }),
+    );
+    expect(sinCorreo.correo).toBeNull();
+
+    const conTelefono = await createEmpleado(
+      empleadoInput(acme.id, {
+        codigo: "E002",
+        correo: "b@x.com",
+        telefono: "+1-809-555-1234",
+      }),
+    );
+    expect(conTelefono.telefono).toBe("+1-809-555-1234");
+  });
+
   it("rechaza correo duplicado globalmente", async () => {
     const acme = await createEmpresa(EMPRESA);
     const beta = await createEmpresa(OTRA);

@@ -138,7 +138,19 @@ describe("extraerFilas", () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.faltantes).toEqual(
-      expect.arrayContaining(["apellidos", "correo", "fechaIngreso"]),
+      expect.arrayContaining(["apellidos", "fechaIngreso"]),
     );
+    expect(r.faltantes).not.toContain("correo");
+  });
+
+  it("mapea la columna celular a telefono", () => {
+    const ws = buildSheet([
+      ["codigo", "nombres", "apellidos", "fecha_ingreso", "celular"],
+      ["E1", "Ana", "López", 43831, "809-555-0000"],
+    ]);
+    const r = extraerFilas(ws);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.filas[0]?.valores.telefono).toBe("809-555-0000");
   });
 });

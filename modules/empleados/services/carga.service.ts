@@ -42,6 +42,7 @@ function construirInput(
     nombres: valores.nombres,
     apellidos: valores.apellidos,
     correo: valores.correo,
+    telefono: valores.telefono,
     departamento: valores.departamento,
     puesto: valores.puesto,
     zona: valores.zona,

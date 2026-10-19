@@ -36,6 +36,7 @@ export async function EmpleadosTable({ query }: { query: EmpleadoListQuery }) {
           <TableHead>Nombre</TableHead>
           <TableHead>Empresa</TableHead>
           <TableHead>Correo</TableHead>
+          <TableHead>Teléfono</TableHead>
           <TableHead>Departamento</TableHead>
           <TableHead>Zona</TableHead>
           <TableHead>Estado</TableHead>
@@ -52,7 +53,8 @@ export async function EmpleadosTable({ query }: { query: EmpleadoListQuery }) {
             <TableCell>
               {empleado.empresa.codigo} — {empleado.empresa.nombre}
             </TableCell>
-            <TableCell>{empleado.correo}</TableCell>
+            <TableCell>{empleado.correo ?? "—"}</TableCell>
+            <TableCell>{empleado.telefono ?? "—"}</TableCell>
             <TableCell>{empleado.departamento ?? "—"}</TableCell>
             <TableCell>{empleado.zona ?? "—"}</TableCell>
             <TableCell>

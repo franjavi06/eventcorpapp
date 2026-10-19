@@ -81,6 +81,20 @@ describe("importEmpleados", () => {
     expect(r.errores[0]?.mensaje).toMatch(/ya existen/i);
   });
 
+  it("importa filas sin correo y no las marca como duplicadas", async () => {
+    const r = await importEmpleados(empresaId, [
+      fila(2, { ...base("A"), correo: undefined, telefono: "809-1" }),
+      fila(3, { ...base("B"), correo: undefined }),
+    ]);
+    expect(r.importados).toBe(2);
+    expect(r.errores).toHaveLength(0);
+    const emp = await prisma.empleado.findFirst({
+      where: { empresaId, codigo: "COD-A" },
+    });
+    expect(emp?.correo).toBeNull();
+    expect(emp?.telefono).toBe("809-1");
+  });
+
   it("rechaza empresa inexistente", async () => {
     await expect(
       importEmpleados("3f8a2c1e-7b4d-4e2f-9a1b-0c3d5e6f7a8b", [fila(2, base("A"))]),
