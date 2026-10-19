@@ -67,6 +67,7 @@ export function EjecucionPanel({
   ganadoresIniciales = [],
 }: EjecucionPanelProps) {
   const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
   const [rollingName, setRollingName] = useState<string | null>(null);
   const [nuevosGanadores, setNuevosGanadores] = useState<GanadorInfo[] | null>(
@@ -244,7 +245,7 @@ export function EjecucionPanel({
       </div>
 
       <div className="flex flex-col items-center gap-2">
-        <AlertDialog>
+        <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <AlertDialogTrigger
             render={
               <Button
@@ -275,7 +276,12 @@ export function EjecucionPanel({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={girarSorteo}>
+              <AlertDialogAction
+                onClick={() => {
+                  setDialogOpen(false);
+                  girarSorteo();
+                }}
+              >
                 Ejecutar
               </AlertDialogAction>
             </AlertDialogFooter>
