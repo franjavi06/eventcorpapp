@@ -13,6 +13,7 @@ function getSectionLabel(pathname: string): string {
   if (pathname.includes("/reporte") || pathname.startsWith("/reportes"))
     return "Reportes y Métricas";
   if (pathname.startsWith("/eventos")) return "Gestión de Eventos";
+  if (pathname.startsWith("/ayuda")) return "Instructivo de Uso";
   return "EventCorpApp";
 }
 
