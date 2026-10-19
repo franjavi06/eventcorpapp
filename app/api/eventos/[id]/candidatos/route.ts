@@ -8,8 +8,10 @@ export async function GET(
 ) {
   try {
     const { id } = idParamSchema.parse(await context.params);
-    const q = new URL(request.url).searchParams.get("q") ?? undefined;
-    return ok(await listCandidatos(id, q));
+    const params = new URL(request.url).searchParams;
+    const q = params.get("q") ?? undefined;
+    const excludeParticipantes = params.get("excluirParticipantes") === "1";
+    return ok(await listCandidatos(id, q, excludeParticipantes));
   } catch (error) {
     return handleApiError(error);
   }

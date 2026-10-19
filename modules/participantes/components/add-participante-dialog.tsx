@@ -24,7 +24,8 @@ export function AddParticipanteDialog({ eventoId }: { eventoId: string }) {
         <DialogHeader>
           <DialogTitle>Añadir participante</DialogTitle>
           <DialogDescription>
-            Busca empleados activos de las empresas habilitadas
+            Busca empleados activos de las empresas habilitadas que aún no
+            participan
           </DialogDescription>
         </DialogHeader>
         <CandidatoSearch eventoId={eventoId} mode="add" />

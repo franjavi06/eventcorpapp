@@ -267,7 +267,15 @@ export async function removeParticipante(eventoId: string, empleadoId: string) {
   return { removed: true };
 }
 
-export async function listCandidatos(eventoId: string, q?: string) {
+export async function listCandidatos(
+  eventoId: string,
+  q?: string,
+  excludeParticipantes = false,
+) {
   await assertEvento(eventoId);
-  return participanteRepository.findCandidatos({ eventoId, q });
+  return participanteRepository.findCandidatos({
+    eventoId,
+    q,
+    excludeParticipantes,
+  });
 }

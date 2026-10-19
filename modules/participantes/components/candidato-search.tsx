@@ -42,8 +42,9 @@ export function CandidatoSearch({ eventoId, mode }: CandidatoSearchProps) {
     const timer = setTimeout(async () => {
       setBuscando(true);
       try {
+        const excluir = mode === "add" ? "&excluirParticipantes=1" : "";
         const res = await fetch(
-          `/api/eventos/${eventoId}/candidatos?q=${encodeURIComponent(q)}`,
+          `/api/eventos/${eventoId}/candidatos?q=${encodeURIComponent(q)}${excluir}`,
           { signal: controller.signal },
         );
         const body = await res.json();
@@ -59,7 +60,7 @@ export function CandidatoSearch({ eventoId, mode }: CandidatoSearchProps) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [q, eventoId]);
+  }, [q, eventoId, mode]);
 
   function registrar(empleadoId: string) {
     const url =
@@ -86,8 +87,9 @@ export function CandidatoSearch({ eventoId, mode }: CandidatoSearchProps) {
       }
       toast.success(exito);
       // refresca resultados para reflejar el nuevo estado
+      const excluir = mode === "add" ? "&excluirParticipantes=1" : "";
       const r = await fetch(
-        `/api/eventos/${eventoId}/candidatos?q=${encodeURIComponent(q)}`,
+        `/api/eventos/${eventoId}/candidatos?q=${encodeURIComponent(q)}${excluir}`,
       );
       const b = await r.json();
       if (r.ok) setResultados(b.data);
@@ -116,7 +118,9 @@ export function CandidatoSearch({ eventoId, mode }: CandidatoSearchProps) {
       {!buscando && resultados.length === 0 && (
         <p className="text-sm text-muted-foreground">
           {q
-            ? "Sin resultados. Solo aparecen empleados activos de empresas habilitadas."
+            ? mode === "add"
+              ? "Sin resultados. Solo aparecen empleados activos de empresas habilitadas que aún no participan."
+              : "Sin resultados. Solo aparecen empleados activos de empresas habilitadas."
             : "Escribe para buscar empleados de las empresas habilitadas."}
         </p>
       )}
