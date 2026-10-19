@@ -133,10 +133,10 @@ describe("participantes service", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it("no permite desasociar empresa con participantes", async () => {
+  it("no permite desasociar empresa con asistencia registrada", async () => {
     const { empresa, evento } = await setup();
     const empleado = await createEmpleado(empleadoInput(empresa.id));
-    await addParticipante(evento.id, { empleadoId: empleado.id });
+    await checkIn(evento.id, { empleadoId: empleado.id });
 
     await expect(
       removeEmpresaFromEvento(evento.id, empresa.id),

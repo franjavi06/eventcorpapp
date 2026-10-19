@@ -60,4 +60,8 @@ export const eventoRepository = {
       select: { empresaId: true },
     });
   },
+
+  transaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) {
+    return prisma.$transaction(fn);
+  },
 };

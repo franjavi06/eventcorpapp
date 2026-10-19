@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
+import { prisma } from "@/lib/prisma";
 import {
   isForeignKeyViolation,
   isRecordNotFound,
@@ -145,15 +146,39 @@ export async function addEmpresaToEvento(eventoId: string, input: unknown) {
   }
 
   try {
-    const asociacion = await eventoRepository.addEmpresa(eventoId, empresaId);
-    await registrarAuditoria({
-      eventoId,
-      entidad: "EventoEmpresa",
-      entidadId: empresaId,
-      accion: "ASOCIAR_EMPRESA",
-      despues: { empresaCodigo: empresa.codigo, empresaNombre: empresa.nombre },
+    return await eventoRepository.transaction(async (tx) => {
+      const asociacion = await tx.eventoEmpresa.create({
+        data: { eventoId, empresaId },
+      });
+      const empleados = await tx.empleado.findMany({
+        where: { empresaId, activo: true },
+        select: { id: true },
+      });
+      const { count: empleadosInscritos } =
+        await tx.eventoParticipante.createMany({
+          data: empleados.map((e) => ({
+            eventoId,
+            empresaId,
+            empleadoId: e.id,
+          })),
+          skipDuplicates: true,
+        });
+      await registrarAuditoria(
+        {
+          eventoId,
+          entidad: "EventoEmpresa",
+          entidadId: empresaId,
+          accion: "ASOCIAR_EMPRESA",
+          despues: {
+            empresaCodigo: empresa.codigo,
+            empresaNombre: empresa.nombre,
+            empleadosInscritos,
+          },
+        },
+        tx,
+      );
+      return { ...asociacion, empleadosInscritos };
     });
-    return asociacion;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
@@ -165,16 +190,40 @@ export async function addEmpresaToEvento(eventoId: string, input: unknown) {
 }
 
 export async function removeEmpresaFromEvento(eventoId: string, empresaId: string) {
-  try {
-    const result = await eventoRepository.removeEmpresa(eventoId, empresaId);
-    await registrarAuditoria({
+  const bloqueantes = await prisma.eventoParticipante.count({
+    where: {
       eventoId,
-      entidad: "EventoEmpresa",
-      entidadId: empresaId,
-      accion: "DESASOCIAR_EMPRESA",
-      antes: { empresaId },
+      empresaId,
+      OR: [{ asistencia: { isNot: null } }, { ganadores: { some: {} } }],
+    },
+  });
+  if (bloqueantes > 0) {
+    throw new ConflictError(
+      `No se puede desasociar: la empresa tiene ${bloqueantes} participante(s) con asistencia registrada o premios adjudicados`,
+    );
+  }
+
+  try {
+    return await eventoRepository.transaction(async (tx) => {
+      const { count: participantesRemovidos } =
+        await tx.eventoParticipante.deleteMany({
+          where: { eventoId, empresaId },
+        });
+      const result = await tx.eventoEmpresa.delete({
+        where: { eventoId_empresaId: { eventoId, empresaId } },
+      });
+      await registrarAuditoria(
+        {
+          eventoId,
+          entidad: "EventoEmpresa",
+          entidadId: empresaId,
+          accion: "DESASOCIAR_EMPRESA",
+          antes: { empresaId, participantesRemovidos },
+        },
+        tx,
+      );
+      return result;
     });
-    return result;
   } catch (error) {
     if (isRecordNotFound(error)) {
       throw new NotFoundError("La empresa no está asociada a este evento");

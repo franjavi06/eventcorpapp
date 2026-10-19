@@ -6,6 +6,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "@/lib/errors";
+import { prisma } from "@/lib/prisma";
 import { createEmpresa, updateEmpresa } from "@/modules/empresas/services/empresa.service";
 import {
   addEmpresaToEvento,
@@ -128,6 +129,57 @@ describe("eventos service", () => {
           empresaId: "3f8a2c1e-7b4d-4e2f-9a1b-0c3d5e6f7a8b",
         }),
       ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("inscribe automáticamente los empleados activos al asociar", async () => {
+      const evento = await createEvento(EVENTO);
+      const empresa = await createEmpresa(EMPRESA);
+      const fechaIngreso = new Date("2020-01-01");
+      await prisma.empleado.createMany({
+        data: [
+          { empresaId: empresa.id, codigo: "E1", nombres: "A", apellidos: "Uno", fechaIngreso },
+          { empresaId: empresa.id, codigo: "E2", nombres: "B", apellidos: "Dos", fechaIngreso },
+          { empresaId: empresa.id, codigo: "E3", nombres: "C", apellidos: "Tres", fechaIngreso, activo: false },
+        ],
+      });
+
+      const res = await addEmpresaToEvento(evento.id, { empresaId: empresa.id });
+
+      expect(res.empleadosInscritos).toBe(2);
+      const participantes = await prisma.eventoParticipante.findMany({
+        where: { eventoId: evento.id },
+      });
+      expect(participantes).toHaveLength(2);
+      expect(
+        participantes.every(
+          (p) => p.participaSorteos && p.empresaId === empresa.id,
+        ),
+      ).toBe(true);
+    });
+
+    it("desasocia en cascada participantes sin asistencia ni premios", async () => {
+      const evento = await createEvento(EVENTO);
+      const empresa = await createEmpresa(EMPRESA);
+      await prisma.empleado.create({
+        data: {
+          empresaId: empresa.id,
+          codigo: "E1",
+          nombres: "A",
+          apellidos: "Uno",
+          fechaIngreso: new Date("2020-01-01"),
+        },
+      });
+      await addEmpresaToEvento(evento.id, { empresaId: empresa.id });
+
+      await removeEmpresaFromEvento(evento.id, empresa.id);
+
+      expect(
+        await prisma.eventoParticipante.count({
+          where: { eventoId: evento.id },
+        }),
+      ).toBe(0);
+      const detalle = await getEvento(evento.id);
+      expect(detalle.empresas).toHaveLength(0);
     });
 
     it("desasocia una empresa y reporta cuando no estaba asociada", async () => {

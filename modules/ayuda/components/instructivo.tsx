@@ -134,16 +134,23 @@ const PASOS: Paso[] = [
     titulo: "Empresas habilitadas del evento",
     icono: Link2,
     descripcion:
-      "Dentro del detalle del evento defines qué empresas participan. Solo los empleados de esas empresas podrán registrarse.",
+      "Dentro del detalle del evento defines qué empresas participan. Al asociar una empresa, todos sus empleados activos se inscriben automáticamente como participantes.",
     acciones: [
       <>
         En el detalle del evento, sección{" "}
         <strong>Empresas habilitadas</strong>, agrega empresas activas del
-        grupo.
+        grupo. Al pulsar <strong>Asociar</strong> verás cuántos empleados se
+        inscribieron.
       </>,
       <>
-        Puedes quitar una empresa habilitada; sus empleados dejan de poder
-        incorporarse al evento.
+        Al <strong>quitar</strong> una empresa se eliminan sus participantes
+        que aún no registraron asistencia. Si alguno ya hizo check-in o ganó un
+        sorteo, la desasociación se bloquea.
+      </>,
+      <>
+        Los empleados dados de alta <em>después</em> de asociar la empresa no
+        se inscriben solos: añádelos desde Participantes o regístralos
+        directamente en el check-in.
       </>,
     ],
     importante:
@@ -153,11 +160,12 @@ const PASOS: Paso[] = [
     titulo: "Participantes y check-in",
     icono: ClipboardCheck,
     descripcion:
-      "Los participantes son los empleados incorporados al evento. La asistencia se registra en el check-in.",
+      "Los participantes son los empleados incorporados al evento — al habilitar empresas la mayoría ya estará inscrita. La asistencia se registra en el check-in.",
     acciones: [
       <>
         <strong>Participantes</strong>: desde el detalle del evento, busca por
-        código, identificación, nombre o correo y pulsa <strong>Añadir</strong>.
+        código, identificación, nombre o correo y pulsa <strong>Añadir</strong>{" "}
+        para incorporaciones puntuales.
       </>,
       <>
         <strong>Check-in</strong>: mismo buscador, pero registra la asistencia

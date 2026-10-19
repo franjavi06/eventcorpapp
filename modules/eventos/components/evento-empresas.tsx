@@ -45,7 +45,12 @@ export function EventoEmpresas({
         toast.error(body.error?.message ?? "No se pudo asociar la empresa");
         return;
       }
-      toast.success("Empresa asociada al evento");
+      const inscritos: number = body.data?.empleadosInscritos ?? 0;
+      toast.success(
+        inscritos > 0
+          ? `Empresa asociada — ${inscritos} empleados inscritos como participantes`
+          : "Empresa asociada al evento",
+      );
       setSeleccion("");
       router.refresh();
     });
@@ -72,7 +77,9 @@ export function EventoEmpresas({
       <CardHeader>
         <CardTitle className="text-base">Empresas habilitadas</CardTitle>
         <CardDescription>
-          Solo empleados de estas empresas podrán participar en el evento
+          Solo empleados de estas empresas podrán participar en el evento. Al
+          asociar una empresa, todos sus empleados activos se inscriben
+          automáticamente como participantes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
