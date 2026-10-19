@@ -169,9 +169,12 @@ const PASOS: Paso[] = [
         incorporaciones puntuales.
       </>,
       <>
-        <strong>Check-in</strong>: mismo buscador, pero registra la asistencia
-        del día. Si el empleado aún no era participante, se incorpora y se
-        marca su asistencia en un solo paso.
+        <strong>Check-in</strong>: escanea el código de barras del carnet del
+        empleado o escribe su código y pulsa Enter. Las pestañas{" "}
+        <strong>Ponchados</strong>/<strong>Pendientes</strong> muestran quién
+        ya registró y quién falta; en Pendientes también puedes ponchar con el
+        botón de cada fila. Si el empleado aún no era participante, se
+        incorpora y se marca su asistencia en un solo paso.
       </>,
       <>
         <strong>Exclusión de sorteos</strong>: en la tabla de participantes

@@ -22,10 +22,12 @@ export const participanteRepository = {
     where?: Prisma.EventoParticipanteWhereInput;
     skip: number;
     take: number;
+    orderBy?: Prisma.EventoParticipanteOrderByWithRelationInput[];
   }) {
+    const { orderBy, ...rest } = args;
     return prisma.eventoParticipante.findMany({
-      ...args,
-      orderBy: [
+      ...rest,
+      orderBy: orderBy ?? [
         { empleado: { apellidos: "asc" } },
         { empleado: { nombres: "asc" } },
       ],
@@ -122,12 +124,26 @@ export const participanteRepository = {
     });
   },
 
+  /** Empleados con ese código cuyas empresas están habilitadas en el evento. */
+  findEmpleadosPorCodigo(eventoId: string, codigo: string) {
+    return prisma.empleado.findMany({
+      where: {
+        codigo: { equals: codigo, mode: "insensitive" },
+        empresa: { eventos: { some: { eventoId } } },
+      },
+      select: { id: true },
+    });
+  },
+
   /** Empleado con su empresa y la asociación empresa-evento (si existe). */
   findEmpleadoParaEvento(eventoId: string, empleadoId: string) {
     return prisma.empleado.findUnique({
       where: { id: empleadoId },
       select: {
         id: true,
+        codigo: true,
+        nombres: true,
+        apellidos: true,
         activo: true,
         empresaId: true,
         empresa: {

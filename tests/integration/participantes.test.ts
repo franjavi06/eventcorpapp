@@ -200,6 +200,49 @@ describe("participantes service", () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
+    it("poncha por código de empleado", async () => {
+      const { empresa, evento } = await setup();
+      const empleado = await createEmpleado(empleadoInput(empresa.id));
+
+      const res = await checkIn(evento.id, { codigo: "e-1" });
+
+      expect(res.empleado.codigo).toBe("E-1");
+      expect(res.empleado.empresa).toBe("Acme");
+      expect(res.asistencia.registradoAt).toBeInstanceOf(Date);
+      const p = await prisma.eventoParticipante.findUnique({
+        where: {
+          eventoId_empleadoId: { eventoId: evento.id, empleadoId: empleado.id },
+        },
+      });
+      expect(p).not.toBeNull();
+    });
+
+    it("rechaza código inexistente o de empresa no habilitada", async () => {
+      const { otra, evento } = await setup();
+      await createEmpleado(
+        empleadoInput(otra.id, { correo: "otro@example.com" }),
+      );
+
+      await expect(
+        checkIn(evento.id, { codigo: "E-1" }),
+      ).rejects.toBeInstanceOf(ValidationError);
+      await expect(
+        checkIn(evento.id, { codigo: "NOPE" }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("rechaza código ambiguo entre empresas habilitadas", async () => {
+      const { empresa, otra, evento } = await setup(true);
+      await createEmpleado(empleadoInput(empresa.id));
+      await createEmpleado(
+        empleadoInput(otra.id, { correo: "otro@example.com" }),
+      );
+
+      await expect(
+        checkIn(evento.id, { codigo: "E-1" }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
     it("permite anular el check-in", async () => {
       const { empresa, evento } = await setup();
       const empleado = await createEmpleado(empleadoInput(empresa.id));

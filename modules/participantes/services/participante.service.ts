@@ -49,6 +49,7 @@ async function assertEmpleadoHabilitado(eventoId: string, empleadoId: string) {
 export async function listParticipantes(
   eventoId: string,
   query: ParticipanteListQuery,
+  orderBy?: Prisma.EventoParticipanteOrderByWithRelationInput[],
 ) {
   await assertEvento(eventoId);
   const { page, pageSize, q, empresaId, asistencia, sorteos } = query;
@@ -80,6 +81,7 @@ export async function listParticipantes(
       where,
       skip: (page - 1) * pageSize,
       take: pageSize,
+      orderBy,
     }),
     participanteRepository.count(where),
   ]);
@@ -171,8 +173,31 @@ export async function excluirDeSorteos(
 }
 
 export async function checkIn(eventoId: string, input: unknown) {
-  const { empleadoId } = asistenciaCreateSchema.parse(input);
+  const parsed = asistenciaCreateSchema.parse(input);
   await assertEvento(eventoId);
+
+  let empleadoId = parsed.empleadoId;
+  if (!empleadoId && parsed.codigo) {
+    const coincidencias = await participanteRepository.findEmpleadosPorCodigo(
+      eventoId,
+      parsed.codigo,
+    );
+    if (coincidencias.length === 0) {
+      throw new ValidationError(
+        `No se encontró empleado con el código "${parsed.codigo}" en las empresas habilitadas`,
+      );
+    }
+    if (coincidencias.length > 1) {
+      throw new ConflictError(
+        `El código "${parsed.codigo}" existe en varias empresas habilitadas; use la búsqueda manual`,
+      );
+    }
+    empleadoId = coincidencias[0].id;
+  }
+  if (!empleadoId) {
+    throw new ValidationError("Indique empleadoId o codigo");
+  }
+
   const empleado = await assertEmpleadoHabilitado(eventoId, empleadoId);
 
   try {
@@ -199,7 +224,15 @@ export async function checkIn(eventoId: string, input: unknown) {
         },
         tx,
       );
-      return { participanteId: participante.id, asistencia };
+      return {
+        participanteId: participante.id,
+        asistencia,
+        empleado: {
+          codigo: empleado.codigo,
+          nombre: `${empleado.nombres} ${empleado.apellidos}`,
+          empresa: empleado.empresa.nombre,
+        },
+      };
     });
   } catch (error) {
     if (isUniqueViolation(error)) {

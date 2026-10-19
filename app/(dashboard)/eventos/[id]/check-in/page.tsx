@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 
+import { FilterTabs } from "@/components/shared/filter-tabs";
+import { SearchForm } from "@/components/shared/search-form";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -12,21 +14,37 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { firstValues } from "@/lib/params";
 import { idParamSchema } from "@/lib/validations/common";
 import { getEvento } from "@/modules/eventos/services/evento.service";
-import { CandidatoSearch } from "@/modules/participantes/components/candidato-search";
+import { CheckInList } from "@/modules/participantes/components/checkin-list";
+import { PoncheForm } from "@/modules/participantes/components/ponche-form";
+import { participanteListQuerySchema } from "@/modules/participantes/schemas/participante.schema";
+
+export const metadata = { title: "Check-in" };
+
+const VISTA_OPTIONS = [
+  { value: "si", label: "Ponchados" },
+  { value: "no", label: "Pendientes" },
+] as const;
 
 async function CheckInContent({
   params,
-}: {
-  params: PageProps<"/eventos/[id]/check-in">["params"];
-}) {
+  searchParams,
+}: PageProps<"/eventos/[id]/check-in">) {
   const parsed = idParamSchema.safeParse(await params);
   if (!parsed.success) notFound();
   const eventoId = parsed.data.id;
 
   const evento = await getEvento(eventoId).catch(() => null);
   if (!evento) notFound();
+
+  const query = participanteListQuerySchema.parse(
+    firstValues(await searchParams),
+  );
+  // "Ponchados" es la vista por defecto
+  const vista: "si" | "no" = query.asistencia === "no" ? "no" : "si";
+  const basePath = `/eventos/${eventoId}/check-in`;
 
   return (
     <div className="space-y-6">
@@ -43,28 +61,48 @@ async function CheckInContent({
       <p className="text-sm text-muted-foreground">
         {evento.nombre} · <span className="font-mono">{evento.codigo}</span>
       </p>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Registrar asistencia</CardTitle>
           <CardDescription>
-            Busca al empleado por código, identificación o nombre. Si aún no es
-            participante, se incorpora automáticamente.
+            Escanea el carnet del empleado o escribe su código y pulsa Enter.
+            Si aún no es participante, se incorpora automáticamente.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CandidatoSearch eventoId={eventoId} mode="checkin" />
+          <PoncheForm eventoId={eventoId} />
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterTabs
+          basePath={basePath}
+          paramName="asistencia"
+          options={VISTA_OPTIONS}
+          current={vista}
+          params={{ q: query.q }}
+        />
+        <SearchForm
+          action={basePath}
+          defaultValue={query.q}
+          placeholder="Código, nombre, identificación…"
+          extraParams={{ asistencia: vista }}
+        />
+      </div>
+
+      <CheckInList eventoId={eventoId} vista={vista} query={query} />
     </div>
   );
 }
 
 export default function CheckInPage({
   params,
+  searchParams,
 }: PageProps<"/eventos/[id]/check-in">) {
   return (
-    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-      <CheckInContent params={params} />
+    <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <CheckInContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }

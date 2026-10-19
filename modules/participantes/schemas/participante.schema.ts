@@ -6,9 +6,14 @@ export const participanteCreateSchema = z.object({
   empleadoId: uuidSchema,
 });
 
-export const asistenciaCreateSchema = z.object({
-  empleadoId: uuidSchema,
-});
+export const asistenciaCreateSchema = z
+  .object({
+    empleadoId: uuidSchema.optional(),
+    codigo: z.string().trim().min(1).max(20).optional(),
+  })
+  .refine((v) => v.empleadoId || v.codigo, {
+    message: "Indique empleadoId o codigo",
+  });
 
 export const exclusionSchema = z.object({
   motivo: z
