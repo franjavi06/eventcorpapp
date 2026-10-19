@@ -6,18 +6,11 @@ import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { FilterTabs } from "@/components/shared/filter-tabs";
 import { SearchForm } from "@/components/shared/search-form";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { firstValues } from "@/lib/params";
 import { idParamSchema } from "@/lib/validations/common";
 import { getEvento } from "@/modules/eventos/services/evento.service";
-import { CandidatoSearch } from "@/modules/participantes/components/candidato-search";
+import { AddParticipanteDialog } from "@/modules/participantes/components/add-participante-dialog";
 import { ParticipantesTable } from "@/modules/participantes/components/participantes-table";
 import { participanteListQuerySchema } from "@/modules/participantes/schemas/participante.schema";
 
@@ -65,13 +58,16 @@ async function ParticipantesContent({ params, searchParams }: Props) {
             Participantes
           </h1>
         </div>
-        <Link
-          href={`/eventos/${eventoId}/check-in`}
-          className={buttonVariants()}
-        >
-          <ClipboardCheck className="size-4" />
-          Check-in
-        </Link>
+        <div className="flex items-center gap-2">
+          <AddParticipanteDialog eventoId={eventoId} />
+          <Link
+            href={`/eventos/${eventoId}/check-in`}
+            className={buttonVariants()}
+          >
+            <ClipboardCheck className="size-4" />
+            Check-in
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -122,18 +118,6 @@ async function ParticipantesContent({ params, searchParams }: Props) {
           }}
         />
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Añadir participante</CardTitle>
-          <CardDescription>
-            Busca empleados activos de las empresas habilitadas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CandidatoSearch eventoId={eventoId} mode="add" />
-        </CardContent>
-      </Card>
 
       <ParticipantesTable eventoId={eventoId} query={query} />
     </div>

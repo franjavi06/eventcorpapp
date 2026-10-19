@@ -163,9 +163,10 @@ const PASOS: Paso[] = [
       "Los participantes son los empleados incorporados al evento — al habilitar empresas la mayoría ya estará inscrita. La asistencia se registra en el check-in.",
     acciones: [
       <>
-        <strong>Participantes</strong>: desde el detalle del evento, busca por
-        código, identificación, nombre o correo y pulsa <strong>Añadir</strong>{" "}
-        para incorporaciones puntuales.
+        <strong>Participantes</strong>: desde el detalle del evento →
+        Participantes, el botón <strong>Añadir participante</strong> abre un
+        buscador por código, identificación, nombre o correo para
+        incorporaciones puntuales.
       </>,
       <>
         <strong>Check-in</strong>: mismo buscador, pero registra la asistencia
