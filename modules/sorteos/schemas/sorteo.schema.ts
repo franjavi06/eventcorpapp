@@ -16,6 +16,9 @@ export const SORTEO_ESTADOS = [
 
 export const sorteoEstadoSchema = z.enum(SORTEO_ESTADOS);
 
+export const MODOS_REVELACION = ["AUTOMATICO", "MANUAL"] as const;
+export const modoRevelacionSchema = z.enum(MODOS_REVELACION);
+
 export const reglaEntidadSchema = z.enum(["EMPRESA", "EMPLEADO"]);
 export const reglaOperadorSchema = z.enum([
   "IGUAL",
@@ -42,6 +45,13 @@ const sorteoBaseFields = z.object({
     .positive("La cantidad de ganadores debe ser mayor que cero"),
   orden: z.coerce.number().int().default(0),
   asistenciaObligatoria: z.boolean().default(true),
+  modoRevelacion: modoRevelacionSchema.default("AUTOMATICO"),
+  duracionAnimacionSegundos: z.coerce
+    .number()
+    .int("La duración debe ser un entero")
+    .min(1, "Mínimo 1 segundo")
+    .max(30, "Máximo 30 segundos")
+    .default(3),
 });
 
 export const sorteoCreateSchema = sorteoBaseFields.extend({

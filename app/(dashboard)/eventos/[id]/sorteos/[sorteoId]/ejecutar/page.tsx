@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ArrowLeft, ClipboardCheck, Trophy } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Sparkles, Timer, Trophy } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +33,7 @@ async function EjecutarSorteoContent({
     })) ?? [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex items-center gap-3">
         <Link
           href={`/eventos/${parsed.data.id}/sorteos/${sorteo.id}`}
@@ -64,6 +64,15 @@ async function EjecutarSorteoContent({
           Asistencia{" "}
           {sorteo.asistenciaObligatoria ? "obligatoria" : "opcional"}
         </span>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-purple-500/10 px-2.5 py-1 text-xs font-semibold text-purple-500">
+          <Sparkles className="size-3.5" />
+          Revelación{" "}
+          {sorteo.modoRevelacion === "MANUAL" ? "manual" : "automática"}
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-500">
+          <Timer className="size-3.5" />
+          {sorteo.duracionAnimacionSegundos}s por ganador
+        </span>
       </div>
 
       <EjecucionPanel
@@ -73,6 +82,8 @@ async function EjecutarSorteoContent({
         descripcion={sorteo.descripcion}
         estado={sorteo.estado}
         cantidadGanadores={sorteo.cantidadGanadores}
+        modoRevelacion={sorteo.modoRevelacion}
+        duracionAnimacionSegundos={sorteo.duracionAnimacionSegundos}
         ganadoresIniciales={ganadoresIniciales}
       />
     </div>
@@ -83,7 +94,7 @@ export default function EjecutarSorteoPage({
   params,
 }: PageProps<"/eventos/[id]/sorteos/[sorteoId]/ejecutar">) {
   return (
-    <Suspense fallback={<Skeleton className="mx-auto h-96 w-full max-w-3xl" />}>
+    <Suspense fallback={<Skeleton className="h-96 w-full" />}>
       <EjecutarSorteoContent params={params} />
     </Suspense>
   );

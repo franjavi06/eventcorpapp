@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  MODOS_REVELACION,
   SORTEO_ESTADOS,
   sorteoCreateSchema,
 } from "@/modules/sorteos/schemas/sorteo.schema";
@@ -36,6 +37,14 @@ const ESTADO_LABELS: Record<(typeof SORTEO_ESTADOS)[number], string> = {
   CANCELADO: "Cancelado",
 };
 
+const MODO_REVELACION_LABELS: Record<
+  (typeof MODOS_REVELACION)[number],
+  string
+> = {
+  AUTOMATICO: "Automático (uno tras otro)",
+  MANUAL: "Manual (clic por cada ganador)",
+};
+
 const inputCls =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -50,6 +59,8 @@ export function SorteoForm({ eventoId, sorteoId, defaultValues }: SorteoFormProp
     defaultValues: {
       estado: "BORRADOR",
       asistenciaObligatoria: true,
+      modoRevelacion: "AUTOMATICO",
+      duracionAnimacionSegundos: 3,
       orden: 0,
       cantidadGanadores: 1,
       ...defaultValues,
@@ -125,6 +136,44 @@ export function SorteoForm({ eventoId, sorteoId, defaultValues }: SorteoFormProp
                 </option>
               ))}
             </select>
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="modoRevelacion">
+              Revelación de ganadores
+            </FieldLabel>
+            <select
+              id="modoRevelacion"
+              className={inputCls}
+              {...register("modoRevelacion")}
+            >
+              {MODOS_REVELACION.map((m) => (
+                <option key={m} value={m}>
+                  {MODO_REVELACION_LABELS[m]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="duracionAnimacionSegundos">
+              Tiempo de giro por ganador (seg)
+            </FieldLabel>
+            <Input
+              id="duracionAnimacionSegundos"
+              type="number"
+              min={1}
+              max={30}
+              aria-invalid={!!errors.duracionAnimacionSegundos}
+              {...register("duracionAnimacionSegundos")}
+            />
+            <FieldError
+              errors={
+                errors.duracionAnimacionSegundos
+                  ? [errors.duracionAnimacionSegundos]
+                  : []
+              }
+            />
           </Field>
         </div>
         <Field>

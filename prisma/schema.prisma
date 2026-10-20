@@ -139,6 +139,11 @@ enum SorteoEstado {
   CANCELADO
 }
 
+enum ModoRevelacion {
+  AUTOMATICO
+  MANUAL
+}
+
 enum ReglaEntidad {
   EMPRESA
   EMPLEADO
@@ -159,9 +164,11 @@ model Sorteo {
   descripcion           String?      @db.VarChar(500)
   cantidadGanadores     Int          @map("cantidad_ganadores")
   orden                 Int          @default(0)
-  estado                SorteoEstado @default(BORRADOR)
-  asistenciaObligatoria Boolean      @default(true) @map("asistencia_obligatoria")
-  createdAt             DateTime     @default(now()) @map("created_at")
+  estado                    SorteoEstado   @default(BORRADOR)
+  asistenciaObligatoria     Boolean        @default(true) @map("asistencia_obligatoria")
+  modoRevelacion            ModoRevelacion @default(AUTOMATICO) @map("modo_revelacion")
+  duracionAnimacionSegundos Int            @default(3) @map("duracion_animacion_segundos")
+  createdAt                 DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
 
   evento      Evento            @relation(fields: [eventoId], references: [id], onDelete: Cascade)

@@ -78,6 +78,26 @@ describe("sorteos service", () => {
     const s = await createSorteo(evento.id, SORTEO);
     expect(s.estado).toBe("BORRADOR");
     expect(s.asistenciaObligatoria).toBe(true);
+    expect(s.modoRevelacion).toBe("AUTOMATICO");
+    expect(s.duracionAnimacionSegundos).toBe(3);
+  });
+
+  it("permite configurar modoRevelacion y duracionAnimacionSegundos", async () => {
+    const { evento } = await setup();
+    const s = await createSorteo(evento.id, {
+      ...SORTEO,
+      modoRevelacion: "MANUAL",
+      duracionAnimacionSegundos: 5,
+    });
+    expect(s.modoRevelacion).toBe("MANUAL");
+    expect(s.duracionAnimacionSegundos).toBe(5);
+
+    const actualizado = await updateSorteo(s.id, {
+      modoRevelacion: "AUTOMATICO",
+      duracionAnimacionSegundos: 2,
+    });
+    expect(actualizado.modoRevelacion).toBe("AUTOMATICO");
+    expect(actualizado.duracionAnimacionSegundos).toBe(2);
   });
 
   it("rechaza cantidadGanadores <= 0", async () => {

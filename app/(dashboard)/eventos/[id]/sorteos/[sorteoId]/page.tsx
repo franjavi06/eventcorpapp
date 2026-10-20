@@ -57,6 +57,8 @@ async function SorteoDetailContent({
           orden: sorteo.orden,
           estado: sorteo.estado,
           asistenciaObligatoria: sorteo.asistenciaObligatoria,
+          modoRevelacion: sorteo.modoRevelacion,
+          duracionAnimacionSegundos: sorteo.duracionAnimacionSegundos,
         }}
       />
 
