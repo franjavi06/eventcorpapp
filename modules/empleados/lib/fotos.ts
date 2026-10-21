@@ -30,6 +30,19 @@ export function sanitizeFotoSegment(raw: string, label = "código"): string {
   return clean;
 }
 
+/**
+ * Clave canónica de comparación para códigos de empleado:
+ * - minúsculas y sin espacios extremos
+ * - si es numérico (ej. "00033", "0033", "33"), elimina ceros a la izquierda
+ */
+export function normalizeCodigoKey(raw: string): string {
+  const clean = raw.trim().toLowerCase();
+  if (/^\d+$/.test(clean)) {
+    return clean.replace(/^0+/, "") || "0";
+  }
+  return clean;
+}
+
 export function getEmpresaFotoDir(empresaCodigo: string): string {
   const safeEmpresa = sanitizeFotoSegment(empresaCodigo, "código de empresa");
   return path.join(getFotosBaseDir(), safeEmpresa);
@@ -76,16 +89,16 @@ export async function saveEmpleadoFoto(
   const finalExt = normalizedExt in IMAGE_EXTENSIONS ? normalizedExt : ".jpg";
   const dir = await ensureEmpresaFotoDir(empresaCodigo);
 
-  // Eliminar fotos previas del mismo código (cualquier extensión o mayúscula/minúscula)
+  // Eliminar fotos previas del mismo código (incluyendo variantes con/sin ceros a la izquierda)
   try {
     const entries = await fs.readdir(dir);
-    const targetLower = safeEmpleado.toLowerCase();
+    const targetKey = normalizeCodigoKey(safeEmpleado);
     await Promise.all(
       entries
         .filter((name) => {
           const parsed = path.parse(name);
           return (
-            parsed.name.toLowerCase() === targetLower &&
+            normalizeCodigoKey(parsed.name) === targetKey &&
             parsed.ext.toLowerCase() in IMAGE_EXTENSIONS
           );
         })
@@ -118,13 +131,19 @@ export async function findEmpleadoFotoFile(
   }
 
   const targetLower = safeEmpleado.toLowerCase();
-  const match = entries.find((name) => {
-    const parsed = path.parse(name);
-    return (
-      parsed.name.toLowerCase() === targetLower &&
-      parsed.ext.toLowerCase() in IMAGE_EXTENSIONS
+  const targetKey = normalizeCodigoKey(safeEmpleado);
+  const validEntries = entries.filter(
+    (name) => path.extname(name).toLowerCase() in IMAGE_EXTENSIONS,
+  );
+
+  const exactMatch = validEntries.find(
+    (name) => path.parse(name).name.toLowerCase() === targetLower,
+  );
+  const match =
+    exactMatch ??
+    validEntries.find(
+      (name) => normalizeCodigoKey(path.parse(name).name) === targetKey,
     );
-  });
 
   if (!match) return null;
   const ext = path.extname(match).toLowerCase();

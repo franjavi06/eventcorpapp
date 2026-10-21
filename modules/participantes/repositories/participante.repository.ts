@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { normalizeCodigoKey } from "@/modules/empleados/lib/fotos";
 
 const participanteInclude = {
   empleado: {
@@ -125,14 +126,30 @@ export const participanteRepository = {
   },
 
   /** Empleados con ese código cuyas empresas están habilitadas en el evento. */
-  findEmpleadosPorCodigo(eventoId: string, codigo: string) {
-    return prisma.empleado.findMany({
+  async findEmpleadosPorCodigo(eventoId: string, codigo: string) {
+    const exact = await prisma.empleado.findMany({
       where: {
         codigo: { equals: codigo, mode: "insensitive" },
         empresa: { eventos: { some: { eventoId } } },
       },
       select: { id: true },
     });
+    if (exact.length > 0 || !/^\d+$/.test(codigo.trim())) {
+      return exact;
+    }
+
+    // Si es numérico y difiere en ceros a la izquierda (ej. "0033" vs "00033")
+    const targetKey = normalizeCodigoKey(codigo);
+    const candidatos = await prisma.empleado.findMany({
+      where: {
+        codigo: { endsWith: targetKey },
+        empresa: { eventos: { some: { eventoId } } },
+      },
+      select: { id: true, codigo: true },
+    });
+    return candidatos
+      .filter((e) => normalizeCodigoKey(e.codigo) === targetKey)
+      .map(({ id }) => ({ id }));
   },
 
   /** Empleado con su empresa y la asociación empresa-evento (si existe). */

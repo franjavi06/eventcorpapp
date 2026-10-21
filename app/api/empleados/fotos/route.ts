@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { uuidSchema } from "@/lib/validations/common";
 import {
   ensureEmpresaFotoDir,
+  normalizeCodigoKey,
   saveEmpleadoFoto,
 } from "@/modules/empleados/lib/fotos";
 import { empresaRepository } from "@/modules/empresas/repositories/empresa.repository";
@@ -41,9 +42,10 @@ export async function POST(request: Request) {
       where: { empresaId: empresa.id },
       select: { codigo: true },
     });
-    const codigosExistentes = new Set(
-      empleadosEmpresa.map((e) => e.codigo.toLowerCase()),
-    );
+    const codigoCanonicPorKey = new Map<string, string>();
+    for (const e of empleadosEmpresa) {
+      codigoCanonicPorKey.set(normalizeCodigoKey(e.codigo), e.codigo);
+    }
 
     let guardadas = 0;
     let empleadosCoincidentes = 0;
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
     for (const file of files) {
       const parsed = path.parse(file.name);
       const ext = parsed.ext.toLowerCase();
-      const codigo = parsed.name.trim();
+      const codigoArchivo = parsed.name.trim();
 
       if (!ALLOWED_EXT.has(ext)) {
         errores.push({
@@ -71,13 +73,17 @@ export async function POST(request: Request) {
       }
 
       try {
+        const codigoCanonico = codigoCanonicPorKey.get(
+          normalizeCodigoKey(codigoArchivo),
+        );
+        const codigoFinal = codigoCanonico ?? codigoArchivo;
         const buffer = Buffer.from(await file.arrayBuffer());
-        await saveEmpleadoFoto(empresa.codigo, codigo, buffer, ext);
+        await saveEmpleadoFoto(empresa.codigo, codigoFinal, buffer, ext);
         guardadas += 1;
-        if (codigosExistentes.has(codigo.toLowerCase())) {
+        if (codigoCanonico) {
           empleadosCoincidentes += 1;
         } else {
-          sinEmpleado.push(codigo);
+          sinEmpleado.push(codigoArchivo);
         }
       } catch (err) {
         errores.push({

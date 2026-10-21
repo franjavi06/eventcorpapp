@@ -67,6 +67,23 @@ describe("fotos de empleados por empresa", () => {
     expect(enNueva).not.toBeNull();
   });
 
+  it("empareja códigos numéricos con distinta cantidad de ceros a la izquierda (00033 vs 0033.jpg y 3377.jpg)", async () => {
+    await saveEmpleadoFoto("IB", "0033", Buffer.from("foto-33"), ".jpg");
+    await saveEmpleadoFoto("IB", "3377", Buffer.from("foto-3377"), ".jpg");
+
+    const porCincoDigitos = await findEmpleadoFotoFile("IB", "00033");
+    expect(porCincoDigitos).not.toBeNull();
+    expect(await fs.readFile(porCincoDigitos!.filePath, "utf8")).toBe(
+      "foto-33",
+    );
+
+    const porCeroInicial = await findEmpleadoFotoFile("IB", "03377");
+    expect(porCeroInicial).not.toBeNull();
+    expect(await fs.readFile(porCeroInicial!.filePath, "utf8")).toBe(
+      "foto-3377",
+    );
+  });
+
   it("rechaza segmentos inseguros (path traversal)", () => {
     expect(() => sanitizeFotoSegment("../etc")).toThrow(ValidationError);
     expect(() => sanitizeFotoSegment("a/b")).toThrow(ValidationError);

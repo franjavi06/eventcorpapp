@@ -217,6 +217,14 @@ describe("participantes service", () => {
       expect(p).not.toBeNull();
     });
 
+    it("poncha por código numérico aunque difieran los ceros a la izquierda (0033 vs 00033)", async () => {
+      const { empresa, evento } = await setup();
+      await createEmpleado(empleadoInput(empresa.id, { codigo: "00033" }));
+
+      const res = await checkIn(evento.id, { codigo: "0033" });
+      expect(res.empleado.codigo).toBe("00033");
+    });
+
     it("rechaza código inexistente o de empresa no habilitada", async () => {
       const { otra, evento } = await setup();
       await createEmpleado(
