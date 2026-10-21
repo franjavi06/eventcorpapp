@@ -446,43 +446,46 @@ export function EjecucionPanel({
             </h3>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {ganadoresMostrados.map((g, idx) => {
-              const cargo = formatCargo(g);
-              return (
-                <div
-                  key={g.codigo}
-                  className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
-                    enSecuencia && idx === reveladosCount - 1
-                      ? "border-amber-500/50 bg-amber-500/10 shadow-md"
-                      : "bg-background/60"
-                  }`}
-                >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
-                    #{idx + 1}
-                  </span>
-                  <EmpleadoAvatar
-                    empresaCodigo={g.empresaCodigo}
-                    empleadoCodigo={g.codigo}
-                    nombre={g.nombre}
-                    size="md"
-                  />
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="truncate font-bold text-foreground">
-                      {g.nombre}
-                    </p>
-                    {cargo && (
-                      <p className="truncate text-xs font-medium text-indigo-500">
-                        {cargo}
+            {ganadoresMostrados
+              .map((g, idx) => ({ g, idx }))
+              .reverse()
+              .map(({ g, idx }) => {
+                const cargo = formatCargo(g);
+                return (
+                  <div
+                    key={g.codigo}
+                    className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
+                      enSecuencia && idx === reveladosCount - 1
+                        ? "border-amber-500/50 bg-amber-500/10 shadow-md"
+                        : "bg-background/60"
+                    }`}
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
+                      #{idx + 1}
+                    </span>
+                    <EmpleadoAvatar
+                      empresaCodigo={g.empresaCodigo}
+                      empleadoCodigo={g.codigo}
+                      nombre={g.nombre}
+                      size="md"
+                    />
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="truncate font-bold text-foreground">
+                        {g.nombre}
                       </p>
-                    )}
-                    <p className="truncate text-xs text-muted-foreground">
-                      {g.empresa} ·{" "}
-                      <span className="font-mono">{g.codigo}</span>
-                    </p>
+                      {cargo && (
+                        <p className="truncate text-xs font-medium text-indigo-500">
+                          {cargo}
+                        </p>
+                      )}
+                      <p className="truncate text-xs text-muted-foreground">
+                        {g.empresa} ·{" "}
+                        <span className="font-mono">{g.codigo}</span>
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
       )}
