@@ -55,16 +55,25 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                 )}
                 {e.ganadores.length > 0 && (
                   <ul className="mt-2 space-y-1 border-t pt-2">
-                    {e.ganadores.map((g) => (
-                      <li key={g.id} className="text-sm">
-                        <span className="font-mono">
-                          {g.participante.empleado.codigo}
-                        </span>{" "}
-                        — {g.participante.empleado.nombres}{" "}
-                        {g.participante.empleado.apellidos} (
-                        {g.participante.empleado.empresa.nombre})
-                      </li>
-                    ))}
+                    {e.ganadores.map((g) => {
+                      const emp = g.participante.empleado;
+                      const cargo = [emp.puesto, emp.departamento]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return (
+                        <li key={g.id} className="text-sm">
+                          <span className="font-mono">{emp.codigo}</span> —{" "}
+                          {emp.nombres} {emp.apellidos}
+                          {cargo ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · {cargo}
+                            </span>
+                          ) : null}{" "}
+                          ({emp.empresa.nombre})
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </li>

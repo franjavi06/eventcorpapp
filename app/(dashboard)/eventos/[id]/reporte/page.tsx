@@ -176,6 +176,8 @@ async function ReporteContent({
               <TableRow>
                 <TableHead>Empleado</TableHead>
                 <TableHead>Código</TableHead>
+                <TableHead>Puesto</TableHead>
+                <TableHead>Departamento</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Sorteo</TableHead>
               </TableRow>
@@ -185,6 +187,8 @@ async function ReporteContent({
                 <TableRow key={g.id}>
                   <TableCell className="font-medium">{g.empleado}</TableCell>
                   <TableCell>{g.codigoEmpleado}</TableCell>
+                  <TableCell>{g.puesto ?? "—"}</TableCell>
+                  <TableCell>{g.departamento ?? "—"}</TableCell>
                   <TableCell>{g.empresa}</TableCell>
                   <TableCell>{g.sorteo}</TableCell>
                 </TableRow>
@@ -192,7 +196,7 @@ async function ReporteContent({
               {r.ganadores.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={6}
                     className="text-center text-muted-foreground"
                   >
                     Aún no hay ganadores.

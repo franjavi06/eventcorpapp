@@ -1,8 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
-import { Play, RefreshCw, Sparkles, Ticket, Trophy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Briefcase,
+  Building2,
+  Maximize2,
+  Minimize2,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Ticket,
+  Trophy,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -22,6 +32,8 @@ export type GanadorInfo = {
   codigo: string;
   nombre: string;
   empresa: string;
+  puesto?: string | null;
+  departamento?: string | null;
 };
 
 type EjecucionPanelProps = {
@@ -53,6 +65,8 @@ type EjecucionItem = {
         codigo: string;
         nombres: string;
         apellidos: string;
+        puesto: string | null;
+        departamento: string | null;
         empresa: { nombre: string };
       };
     };
@@ -60,6 +74,13 @@ type EjecucionItem = {
 };
 
 const PAUSA_CELEBRACION_MS = 1800;
+
+function formatCargo(g: { puesto?: string | null; departamento?: string | null }) {
+  const parts = [g.puesto, g.departamento].filter(
+    (v): v is string => !!v && v.trim().length > 0,
+  );
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 export function EjecucionPanel({
   eventoId,
@@ -73,6 +94,8 @@ export function EjecucionPanel({
   ganadoresIniciales = [],
 }: EjecucionPanelProps) {
   const router = useRouter();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
   const [rollingName, setRollingName] = useState<string | null>(null);
@@ -82,6 +105,33 @@ export function EjecucionPanel({
   const [reveladosCount, setReveladosCount] = useState(0);
   const [justRevealedIdx, setJustRevealedIdx] = useState<number | null>(null);
   const poolRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    function onFullscreenChange() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      } else if (panelRef.current?.requestFullscreen) {
+        await panelRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        setIsFullscreen((v) => !v);
+      }
+    } catch {
+      // Fallback por si el navegador bloquea la API de pantalla completa
+      setIsFullscreen((v) => !v);
+    }
+  }
 
   const duracionMs = Math.max(1, duracionAnimacionSegundos) * 1000;
   const enSecuencia = colaGanadores !== null;
@@ -194,6 +244,8 @@ export function EjecucionPanel({
             codigo: g.participante.empleado.codigo,
             nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
             empresa: g.participante.empleado.empresa.nombre,
+            puesto: g.participante.empleado.puesto,
+            departamento: g.participante.empleado.departamento,
           }));
         }
       }
@@ -233,15 +285,23 @@ export function EjecucionPanel({
   const ejecutable =
     estado === "ACTIVO" && !enSecuencia && ganadoresIniciales.length === 0;
   const indiceEnGiro = enSecuencia ? reveladosCount + 1 : 1;
+  const cargoUltimo = ultimoRevelado ? formatCargo(ultimoRevelado) : null;
 
   return (
-    <div className="flex w-full flex-col justify-between rounded-3xl border bg-card p-8">
+    <div
+      ref={panelRef}
+      className={`flex w-full flex-col justify-between bg-card p-8 ${
+        isFullscreen
+          ? "fixed inset-0 z-50 min-h-screen overflow-y-auto rounded-none border-0 p-10"
+          : "rounded-3xl border"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wider text-indigo-500">
             Módulo de Ruleta y Premiación
           </span>
-          <h2 className="mt-1 text-2xl font-extrabold text-foreground">
+          <h2 className="mt-1 text-2xl font-extrabold text-foreground md:text-3xl">
             {nombre}
           </h2>
           {descripcion && (
@@ -267,6 +327,27 @@ export function EjecucionPanel({
               {cantidadGanadores}
             </span>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={toggleFullscreen}
+            title={
+              isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"
+            }
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="size-4" />
+                Salir
+              </>
+            ) : (
+              <>
+                <Maximize2 className="size-4" />
+                Pantalla completa
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -294,12 +375,20 @@ export function EjecucionPanel({
             <span className="block text-xs font-bold uppercase tracking-widest text-amber-500">
               ¡Ganador #{reveladosCount} de {totalEsperado}!
             </span>
-            <div>
+            <div className="space-y-1.5">
               <p className="text-3xl font-black text-foreground md:text-5xl">
                 {ultimoRevelado.nombre}
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {ultimoRevelado.empresa} ·{" "}
+              {cargoUltimo && (
+                <p className="inline-flex items-center gap-1.5 text-base font-semibold text-indigo-500 md:text-lg">
+                  <Briefcase className="size-4 shrink-0" />
+                  {cargoUltimo}
+                </p>
+              )}
+              <p className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                <Building2 className="size-3.5 shrink-0" />
+                <span>{ultimoRevelado.empresa}</span>
+                <span>·</span>
                 <span className="font-mono">{ultimoRevelado.codigo}</span>
               </p>
             </div>
@@ -343,29 +432,37 @@ export function EjecucionPanel({
             </h3>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {ganadoresMostrados.map((g, idx) => (
-              <div
-                key={g.codigo}
-                className={`flex items-center gap-3 rounded-2xl border p-4 transition-all ${
-                  enSecuencia && idx === reveladosCount - 1
-                    ? "border-amber-500/50 bg-amber-500/10 shadow-md"
-                    : "bg-background/60"
-                }`}
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
-                  #{idx + 1}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-foreground">
-                    {g.nombre}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {g.empresa} ·{" "}
-                    <span className="font-mono">{g.codigo}</span>
-                  </p>
+            {ganadoresMostrados.map((g, idx) => {
+              const cargo = formatCargo(g);
+              return (
+                <div
+                  key={g.codigo}
+                  className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
+                    enSecuencia && idx === reveladosCount - 1
+                      ? "border-amber-500/50 bg-amber-500/10 shadow-md"
+                      : "bg-background/60"
+                  }`}
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
+                    #{idx + 1}
+                  </span>
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="truncate font-bold text-foreground">
+                      {g.nombre}
+                    </p>
+                    {cargo && (
+                      <p className="truncate text-xs font-medium text-indigo-500">
+                        {cargo}
+                      </p>
+                    )}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {g.empresa} ·{" "}
+                      <span className="font-mono">{g.codigo}</span>
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

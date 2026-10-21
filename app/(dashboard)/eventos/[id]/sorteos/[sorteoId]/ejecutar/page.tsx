@@ -30,6 +30,8 @@ async function EjecutarSorteoContent({
       codigo: g.participante.empleado.codigo,
       nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
       empresa: g.participante.empleado.empresa.nombre,
+      puesto: g.participante.empleado.puesto,
+      departamento: g.participante.empleado.departamento,
     })) ?? [];
 
   return (
