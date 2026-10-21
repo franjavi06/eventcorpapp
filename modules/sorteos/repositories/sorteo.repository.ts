@@ -28,7 +28,26 @@ export const sorteoRepository = {
       where: { id },
       include: {
         ...sorteoInclude,
-        evento: { select: { id: true, nombre: true, codigo: true } },
+        evento: {
+          select: {
+            id: true,
+            nombre: true,
+            codigo: true,
+            empresas: {
+              select: {
+                empresa: {
+                  select: {
+                    id: true,
+                    codigo: true,
+                    nombre: true,
+                    activo: true,
+                  },
+                },
+              },
+              orderBy: { empresa: { nombre: "asc" } },
+            },
+          },
+        },
         ejecuciones: { where: { estado: "COMPLETADA" }, select: { id: true } },
       },
     });

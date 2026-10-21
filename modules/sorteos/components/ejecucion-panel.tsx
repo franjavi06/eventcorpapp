@@ -38,6 +38,12 @@ export type GanadorInfo = {
   departamento?: string | null;
 };
 
+export type EmpresaParticipanteInfo = {
+  id: string;
+  codigo: string;
+  nombre: string;
+};
+
 type EjecucionPanelProps = {
   eventoId: string;
   sorteoId: string;
@@ -48,6 +54,7 @@ type EjecucionPanelProps = {
   modoRevelacion?: "AUTOMATICO" | "MANUAL";
   duracionAnimacionSegundos?: number;
   ganadoresIniciales?: GanadorInfo[];
+  empresasParticipantes?: EmpresaParticipanteInfo[];
 };
 
 type ElegibleItem = {
@@ -94,6 +101,7 @@ export function EjecucionPanel({
   modoRevelacion = "AUTOMATICO",
   duracionAnimacionSegundos = 3,
   ganadoresIniciales = [],
+  empresasParticipantes = [],
 }: EjecucionPanelProps) {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -353,6 +361,29 @@ export function EjecucionPanel({
           </Button>
         </div>
       </div>
+
+      {empresasParticipantes.length > 0 && (
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 rounded-2xl border bg-background/50 px-4 py-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Empresas participantes:
+          </span>
+          {empresasParticipantes.map((emp) => (
+            <div
+              key={emp.id}
+              className="flex items-center gap-2 rounded-xl border bg-card px-3 py-1.5 shadow-xs"
+            >
+              <EmpresaLogo
+                empresaCodigo={emp.codigo}
+                nombre={emp.nombre}
+                size="sm"
+              />
+              <span className="text-xs font-semibold text-foreground">
+                {emp.nombre}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="relative my-8 overflow-hidden rounded-3xl border bg-background/60 px-6 py-14 text-center shadow-inner">
         {isSpinning ? (

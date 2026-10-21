@@ -35,6 +35,10 @@ async function EjecutarSorteoContent({
       departamento: g.participante.empleado.departamento,
     })) ?? [];
 
+  const empresasParticipantes = sorteo.evento.empresas
+    .map((ee) => ee.empresa)
+    .filter((emp) => emp.activo);
+
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center gap-3">
@@ -88,6 +92,7 @@ async function EjecutarSorteoContent({
         modoRevelacion={sorteo.modoRevelacion}
         duracionAnimacionSegundos={sorteo.duracionAnimacionSegundos}
         ganadoresIniciales={ganadoresIniciales}
+        empresasParticipantes={empresasParticipantes}
       />
     </div>
   );
