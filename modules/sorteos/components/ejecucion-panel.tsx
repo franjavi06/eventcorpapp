@@ -26,12 +26,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
 import { Button } from "@/components/ui/button";
 
 export type GanadorInfo = {
   codigo: string;
   nombre: string;
   empresa: string;
+  empresaCodigo?: string | null;
   puesto?: string | null;
   departamento?: string | null;
 };
@@ -67,7 +69,7 @@ type EjecucionItem = {
         apellidos: string;
         puesto: string | null;
         departamento: string | null;
-        empresa: { nombre: string };
+        empresa: { codigo: string; nombre: string };
       };
     };
   }[];
@@ -244,6 +246,7 @@ export function EjecucionPanel({
             codigo: g.participante.empleado.codigo,
             nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
             empresa: g.participante.empleado.empresa.nombre,
+            empresaCodigo: g.participante.empleado.empresa.codigo,
             puesto: g.participante.empleado.puesto,
             departamento: g.participante.empleado.departamento,
           }));
@@ -367,10 +370,21 @@ export function EjecucionPanel({
           </div>
         ) : ultimoRevelado ? (
           <div className="space-y-4">
-            <div className="inline-flex rounded-2xl border border-amber-500/30 bg-amber-500/20 p-3 text-amber-500 shadow-xl">
-              <Trophy
-                className={`size-10 ${justRevealedIdx === reveladosCount - 1 ? "animate-bounce" : ""}`}
-              />
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="relative">
+                <EmpleadoAvatar
+                  empresaCodigo={ultimoRevelado.empresaCodigo}
+                  empleadoCodigo={ultimoRevelado.codigo}
+                  nombre={ultimoRevelado.nombre}
+                  size="xl"
+                  className="border-2 border-amber-500/50 shadow-2xl"
+                />
+                <span className="absolute -right-2 -bottom-2 inline-flex rounded-xl border border-amber-500/40 bg-amber-500 p-1.5 text-white shadow-lg">
+                  <Trophy
+                    className={`size-5 ${justRevealedIdx === reveladosCount - 1 ? "animate-bounce" : ""}`}
+                  />
+                </span>
+              </div>
             </div>
             <span className="block text-xs font-bold uppercase tracking-widest text-amber-500">
               ¡Ganador #{reveladosCount} de {totalEsperado}!
@@ -446,6 +460,12 @@ export function EjecucionPanel({
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
                     #{idx + 1}
                   </span>
+                  <EmpleadoAvatar
+                    empresaCodigo={g.empresaCodigo}
+                    empleadoCodigo={g.codigo}
+                    nombre={g.nombre}
+                    size="md"
+                  />
                   <div className="min-w-0 space-y-0.5">
                     <p className="truncate font-bold text-foreground">
                       {g.nombre}

@@ -231,6 +231,7 @@ export async function checkIn(eventoId: string, input: unknown) {
           codigo: empleado.codigo,
           nombre: `${empleado.nombres} ${empleado.apellidos}`,
           empresa: empleado.empresa.nombre,
+          empresaCodigo: empleado.empresa.codigo,
         },
       };
     });

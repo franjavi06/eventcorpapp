@@ -149,6 +149,7 @@ export const participanteRepository = {
         empresa: {
           select: {
             id: true,
+            codigo: true,
             nombre: true,
             activo: true,
             eventos: {

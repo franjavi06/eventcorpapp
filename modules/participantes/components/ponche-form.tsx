@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { ScanBarcode } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
 import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/format";
 
@@ -12,6 +13,7 @@ type UltimoPonche = {
   codigo: string;
   nombre: string;
   empresa: string;
+  empresaCodigo?: string;
   registradoAt: string;
 };
 
@@ -42,6 +44,7 @@ export function PoncheForm({ eventoId }: { eventoId: string }) {
           codigo: data.empleado?.codigo ?? codigo,
           nombre: data.empleado?.nombre ?? codigo,
           empresa: data.empleado?.empresa ?? "",
+          empresaCodigo: data.empleado?.empresaCodigo,
           registradoAt: data.asistencia?.registradoAt,
         });
         toast.success(`Asistencia registrada — ${data.empleado?.nombre}`);
@@ -79,15 +82,24 @@ export function PoncheForm({ eventoId }: { eventoId: string }) {
       </p>
 
       {ultimo && (
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
-          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-            {ultimo.nombre}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono">{ultimo.codigo}</span>
-            {ultimo.empresa ? ` · ${ultimo.empresa}` : ""} ·{" "}
-            {formatDateTime(ultimo.registradoAt)}
-          </p>
+        <div className="flex items-center gap-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
+          <EmpleadoAvatar
+            empresaCodigo={ultimo.empresaCodigo}
+            empleadoCodigo={ultimo.codigo}
+            nombre={ultimo.nombre}
+            size="lg"
+            className="border-emerald-500/40"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-emerald-600 dark:text-emerald-400">
+              {ultimo.nombre}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-mono">{ultimo.codigo}</span>
+              {ultimo.empresa ? ` · ${ultimo.empresa}` : ""} ·{" "}
+              {formatDateTime(ultimo.registradoAt)}
+            </p>
+          </div>
         </div>
       )}
       {error && (

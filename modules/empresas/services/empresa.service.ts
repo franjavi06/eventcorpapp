@@ -1,6 +1,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { isRecordNotFound, isUniqueViolation } from "@/lib/prisma-errors";
+import {
+  ensureEmpresaFotoDir,
+  renameEmpresaFotoDir,
+} from "@/modules/empleados/lib/fotos";
 import { empresaRepository } from "@/modules/empresas/repositories/empresa.repository";
 import {
   empresaCreateSchema,
@@ -42,7 +46,9 @@ export async function getEmpresa(id: string) {
 export async function createEmpresa(input: unknown) {
   const data = empresaCreateSchema.parse(input);
   try {
-    return await empresaRepository.create(data);
+    const empresa = await empresaRepository.create(data);
+    await ensureEmpresaFotoDir(empresa.codigo).catch(() => undefined);
+    return empresa;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
@@ -56,7 +62,16 @@ export async function createEmpresa(input: unknown) {
 export async function updateEmpresa(id: string, input: unknown) {
   const data = empresaUpdateSchema.parse(input);
   try {
-    return await empresaRepository.update(id, data);
+    const antes = data.codigo ? await empresaRepository.findById(id) : null;
+    const empresa = await empresaRepository.update(id, data);
+    if (antes && data.codigo && antes.codigo !== empresa.codigo) {
+      await renameEmpresaFotoDir(antes.codigo, empresa.codigo).catch(
+        () => undefined,
+      );
+    } else {
+      await ensureEmpresaFotoDir(empresa.codigo).catch(() => undefined);
+    }
+    return empresa;
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(

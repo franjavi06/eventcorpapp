@@ -4,12 +4,16 @@ import { Suspense } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CargaMasiva } from "@/modules/empleados/components/carga-masiva";
+import { ensureEmpresaFotoDir } from "@/modules/empleados/lib/fotos";
 import { empresaRepository } from "@/modules/empresas/repositories/empresa.repository";
 
 export const metadata = { title: "Carga masiva de empleados" };
 
 async function CargaContent() {
   const empresas = await empresaRepository.findAll();
+  await Promise.all(
+    empresas.map((e) => ensureEmpresaFotoDir(e.codigo).catch(() => undefined)),
+  );
   return <CargaMasiva empresas={empresas} />;
 }
 
