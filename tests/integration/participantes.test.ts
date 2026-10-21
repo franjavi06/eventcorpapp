@@ -239,16 +239,35 @@ describe("participantes service", () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
-    it("rechaza código ambiguo entre empresas habilitadas", async () => {
+    it("rechaza código ambiguo entre empresas habilitadas devolviendo los candidatos, y desambigua por empresaId o cuando solo falta uno por ponchar", async () => {
       const { empresa, otra, evento } = await setup(true);
       await createEmpleado(empleadoInput(empresa.id));
       await createEmpleado(
         empleadoInput(otra.id, { correo: "otro@example.com" }),
       );
 
-      await expect(
-        checkIn(evento.id, { codigo: "E-1" }),
-      ).rejects.toBeInstanceOf(ConflictError);
+      // Ambos pendientes → ConflictError con lista de candidatos
+      try {
+        await checkIn(evento.id, { codigo: "E-1" });
+        expect.unreachable("Debió lanzar ConflictError");
+      } catch (err) {
+        expect(err).toBeInstanceOf(ConflictError);
+        const details = (err as ConflictError).details as {
+          candidatos: { codigo: string; yaPoncho: boolean }[];
+        };
+        expect(details.candidatos).toHaveLength(2);
+      }
+
+      // Pasando empresaId poncha al de esa empresa
+      const primero = await checkIn(evento.id, {
+        codigo: "E-1",
+        empresaId: empresa.id,
+      });
+      expect(primero.empleado.empresa).toBe("Acme");
+
+      // Ahora solo queda 1 pendiente con ese código → poncha automáticamente al de Beta
+      const segundo = await checkIn(evento.id, { codigo: "E-1" });
+      expect(segundo.empleado.empresa).toBe("Beta");
     });
 
     it("permite anular el check-in", async () => {

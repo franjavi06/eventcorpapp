@@ -10,6 +10,7 @@ export const asistenciaCreateSchema = z
   .object({
     empleadoId: uuidSchema.optional(),
     codigo: z.string().trim().min(1).max(20).optional(),
+    empresaId: uuidSchema.optional(),
   })
   .refine((v) => v.empleadoId || v.codigo, {
     message: "Indique empleadoId o codigo",

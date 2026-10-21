@@ -126,30 +126,52 @@ export const participanteRepository = {
   },
 
   /** Empleados con ese código cuyas empresas están habilitadas en el evento. */
-  async findEmpleadosPorCodigo(eventoId: string, codigo: string) {
-    const exact = await prisma.empleado.findMany({
-      where: {
-        codigo: { equals: codigo, mode: "insensitive" },
-        empresa: { eventos: { some: { eventoId } } },
+  async findEmpleadosPorCodigo(
+    eventoId: string,
+    codigo: string,
+    empresaId?: string,
+  ) {
+    const selectCandidato = {
+      id: true,
+      codigo: true,
+      nombres: true,
+      apellidos: true,
+      puesto: true,
+      departamento: true,
+      empresa: { select: { id: true, codigo: true, nombre: true } },
+      participaciones: {
+        where: { eventoId },
+        select: { asistencia: { select: { id: true } } },
       },
-      select: { id: true },
-    });
-    if (exact.length > 0 || !/^\d+$/.test(codigo.trim())) {
-      return exact;
+    } satisfies Prisma.EmpleadoSelect;
+
+    const baseWhere: Prisma.EmpleadoWhereInput = {
+      activo: true,
+      ...(empresaId && { empresaId }),
+      empresa: { activo: true, eventos: { some: { eventoId } } },
+    };
+
+    const trimmed = codigo.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      return prisma.empleado.findMany({
+        where: {
+          ...baseWhere,
+          codigo: { equals: trimmed, mode: "insensitive" },
+        },
+        select: selectCandidato,
+      });
     }
 
-    // Si es numérico y difiere en ceros a la izquierda (ej. "0033" vs "00033")
-    const targetKey = normalizeCodigoKey(codigo);
+    // Si es numérico, buscar coincidencias exactas y variantes con ceros a la izquierda (ej. "0033" y "00033")
+    const targetKey = normalizeCodigoKey(trimmed);
     const candidatos = await prisma.empleado.findMany({
       where: {
+        ...baseWhere,
         codigo: { endsWith: targetKey },
-        empresa: { eventos: { some: { eventoId } } },
       },
-      select: { id: true, codigo: true },
+      select: selectCandidato,
     });
-    return candidatos
-      .filter((e) => normalizeCodigoKey(e.codigo) === targetKey)
-      .map(({ id }) => ({ id }));
+    return candidatos.filter((e) => normalizeCodigoKey(e.codigo) === targetKey);
   },
 
   /** Empleado con su empresa y la asociación empresa-evento (si existe). */
@@ -161,6 +183,8 @@ export const participanteRepository = {
         codigo: true,
         nombres: true,
         apellidos: true,
+        puesto: true,
+        departamento: true,
         activo: true,
         empresaId: true,
         empresa: {

@@ -181,18 +181,36 @@ export async function checkIn(eventoId: string, input: unknown) {
     const coincidencias = await participanteRepository.findEmpleadosPorCodigo(
       eventoId,
       parsed.codigo,
+      parsed.empresaId,
     );
     if (coincidencias.length === 0) {
       throw new ValidationError(
         `No se encontró empleado con el código "${parsed.codigo}" en las empresas habilitadas`,
       );
     }
-    if (coincidencias.length > 1) {
-      throw new ConflictError(
-        `El código "${parsed.codigo}" existe en varias empresas habilitadas; use la búsqueda manual`,
-      );
+    if (coincidencias.length === 1) {
+      empleadoId = coincidencias[0].id;
+    } else {
+      const candidatos = coincidencias.map((c) => ({
+        id: c.id,
+        codigo: c.codigo,
+        nombre: `${c.nombres} ${c.apellidos}`,
+        puesto: c.puesto,
+        departamento: c.departamento,
+        empresa: c.empresa.nombre,
+        empresaCodigo: c.empresa.codigo,
+        yaPoncho: Boolean(c.participaciones[0]?.asistencia),
+      }));
+      const pendientes = candidatos.filter((c) => !c.yaPoncho);
+      if (pendientes.length === 1) {
+        empleadoId = pendientes[0].id;
+      } else {
+        throw new ConflictError(
+          `El código "${parsed.codigo}" existe en varias empresas habilitadas; seleccione el empleado`,
+          { candidatos },
+        );
+      }
     }
-    empleadoId = coincidencias[0].id;
   }
   if (!empleadoId) {
     throw new ValidationError("Indique empleadoId o codigo");
@@ -230,6 +248,8 @@ export async function checkIn(eventoId: string, input: unknown) {
         empleado: {
           codigo: empleado.codigo,
           nombre: `${empleado.nombres} ${empleado.apellidos}`,
+          puesto: empleado.puesto,
+          departamento: empleado.departamento,
           empresa: empleado.empresa.nombre,
           empresaCodigo: empleado.empresa.codigo,
         },
