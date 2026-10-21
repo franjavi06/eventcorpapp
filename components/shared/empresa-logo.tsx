@@ -36,9 +36,9 @@ export function EmpresaLogo({
   const styles = SIZE_CLASSES[size];
 
   return (
-    <div
+    <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden border border-indigo-500/20 bg-indigo-500/10 text-indigo-500",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden border border-indigo-500/20 bg-indigo-500/10 text-indigo-500",
         styles.box,
         showImg && "bg-white dark:bg-white/95",
         className,
@@ -55,6 +55,6 @@ export function EmpresaLogo({
       ) : (
         <Building2 className={styles.icon} />
       )}
-    </div>
+    </span>
   );
 }
