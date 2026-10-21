@@ -12,6 +12,13 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
   ".webp": "image/webp",
 };
 
+const LOGO_EXTENSIONS: Record<string, string> = {
+  ...IMAGE_EXTENSIONS,
+  ".svg": "image/svg+xml",
+};
+
+const RESERVED_LOGO_BASENAME = "logo";
+
 export function getFotosBaseDir(): string {
   return process.env.FOTOS_DIR ?? path.join(process.cwd(), "public", "fotos");
 }
@@ -131,10 +138,15 @@ export async function findEmpleadoFotoFile(
   }
 
   const targetLower = safeEmpleado.toLowerCase();
+  if (targetLower === RESERVED_LOGO_BASENAME) return null;
   const targetKey = normalizeCodigoKey(safeEmpleado);
-  const validEntries = entries.filter(
-    (name) => path.extname(name).toLowerCase() in IMAGE_EXTENSIONS,
-  );
+  const validEntries = entries.filter((name) => {
+    const parsed = path.parse(name);
+    return (
+      parsed.name.toLowerCase() !== RESERVED_LOGO_BASENAME &&
+      parsed.ext.toLowerCase() in IMAGE_EXTENSIONS
+    );
+  });
 
   const exactMatch = validEntries.find(
     (name) => path.parse(name).name.toLowerCase() === targetLower,
@@ -151,4 +163,93 @@ export async function findEmpleadoFotoFile(
     filePath: path.join(dir, match),
     contentType: IMAGE_EXTENSIONS[ext] ?? "image/jpeg",
   };
+}
+
+export async function saveEmpresaLogo(
+  empresaCodigo: string,
+  buffer: Buffer,
+  ext = ".png",
+): Promise<string> {
+  const normalizedExt = ext.toLowerCase();
+  const finalExt = normalizedExt in LOGO_EXTENSIONS ? normalizedExt : ".png";
+  const dir = await ensureEmpresaFotoDir(empresaCodigo);
+  const safeEmpresaLower = sanitizeFotoSegment(
+    empresaCodigo,
+    "código de empresa",
+  ).toLowerCase();
+
+  try {
+    const entries = await fs.readdir(dir);
+    await Promise.all(
+      entries
+        .filter((name) => {
+          const parsed = path.parse(name);
+          const base = parsed.name.toLowerCase();
+          return (
+            (base === RESERVED_LOGO_BASENAME || base === safeEmpresaLower) &&
+            parsed.ext.toLowerCase() in LOGO_EXTENSIONS
+          );
+        })
+        .map((name) => fs.unlink(path.join(dir, name)).catch(() => undefined)),
+    );
+  } catch {
+    // carpeta recién creada
+  }
+
+  const filePath = path.join(dir, `${RESERVED_LOGO_BASENAME}${finalExt}`);
+  await fs.writeFile(filePath, buffer);
+  return filePath;
+}
+
+export async function findEmpresaLogoFile(
+  empresaCodigo: string,
+): Promise<{ filePath: string; contentType: string } | null> {
+  const safeEmpresa = sanitizeFotoSegment(empresaCodigo, "código de empresa");
+  const safeLower = safeEmpresa.toLowerCase();
+  const dir = getEmpresaFotoDir(safeEmpresa);
+
+  try {
+    const entries = await fs.readdir(dir);
+    const valid = entries.filter(
+      (name) => path.extname(name).toLowerCase() in LOGO_EXTENSIONS,
+    );
+    const logoEntry =
+      valid.find(
+        (name) => path.parse(name).name.toLowerCase() === RESERVED_LOGO_BASENAME,
+      ) ??
+      valid.find((name) => path.parse(name).name.toLowerCase() === safeLower);
+    if (logoEntry) {
+      const ext = path.extname(logoEntry).toLowerCase();
+      return {
+        filePath: path.join(dir, logoEntry),
+        contentType: LOGO_EXTENSIONS[ext] ?? "image/png",
+      };
+    }
+  } catch {
+    // puede no existir la subcarpeta aún
+  }
+
+  // Fallback: archivo {empresaCodigo}.{ext} en la raíz public/fotos/
+  try {
+    const rootDir = getFotosBaseDir();
+    const rootEntries = await fs.readdir(rootDir);
+    const rootMatch = rootEntries.find((name) => {
+      const parsed = path.parse(name);
+      return (
+        parsed.name.toLowerCase() === safeLower &&
+        parsed.ext.toLowerCase() in LOGO_EXTENSIONS
+      );
+    });
+    if (rootMatch) {
+      const ext = path.extname(rootMatch).toLowerCase();
+      return {
+        filePath: path.join(rootDir, rootMatch),
+        contentType: LOGO_EXTENSIONS[ext] ?? "image/png",
+      };
+    }
+  } catch {
+    // raíz no existe
+  }
+
+  return null;
 }

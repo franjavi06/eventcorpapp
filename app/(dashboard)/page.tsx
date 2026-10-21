@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +29,7 @@ async function DashboardOverview() {
         take: 6,
         select: {
           id: true,
+          codigo: true,
           nombre: true,
           activo: true,
           _count: { select: { empleados: true } },
@@ -231,11 +233,18 @@ async function DashboardOverview() {
                   <Link
                     key={emp.id}
                     href={`/empresas/${emp.id}`}
-                    className="flex items-center justify-between rounded-xl border p-3 transition-colors hover:border-indigo-500/40"
+                    className="flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors hover:border-indigo-500/40"
                   >
-                    <span className="truncate text-sm font-medium text-foreground">
-                      {emp.nombre}
-                    </span>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <EmpresaLogo
+                        empresaCodigo={emp.codigo}
+                        nombre={emp.nombre}
+                        size="sm"
+                      />
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {emp.nombre}
+                      </span>
+                    </div>
                     <span className="shrink-0 rounded-lg bg-indigo-500/10 px-2.5 py-1 text-xs font-semibold text-indigo-500">
                       {emp._count.empleados} emp.
                     </span>

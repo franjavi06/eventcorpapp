@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Building2, MapPin, Pencil } from "lucide-react";
+import { MapPin, Pencil } from "lucide-react";
 
 import { ActivoToggle } from "@/components/shared/activo-toggle";
+import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination } from "@/components/shared/pagination";
 import { buttonVariants } from "@/components/ui/button";
@@ -30,9 +31,11 @@ export async function EmpresasTable({ query }: { query: EmpresaListQuery }) {
           >
             <div>
               <div className="mb-4 flex items-start justify-between">
-                <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-3 text-indigo-500">
-                  <Building2 className="size-6" />
-                </div>
+                <EmpresaLogo
+                  empresaCodigo={empresa.codigo}
+                  nombre={empresa.nombre}
+                  size="md"
+                />
                 <div className="flex items-center gap-2">
                   <span className="rounded-lg border px-2 py-0.5 font-mono text-xs text-muted-foreground">
                     {empresa.codigo}

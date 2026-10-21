@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   Briefcase,
-  Building2,
   Maximize2,
   Minimize2,
   Play,
@@ -27,6 +26,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
+import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Button } from "@/components/ui/button";
 
 export type GanadorInfo = {
@@ -399,8 +399,12 @@ export function EjecucionPanel({
                   {cargoUltimo}
                 </p>
               )}
-              <p className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-                <Building2 className="size-3.5 shrink-0" />
+              <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <EmpresaLogo
+                  empresaCodigo={ultimoRevelado.empresaCodigo}
+                  nombre={ultimoRevelado.empresa}
+                  size="xs"
+                />
                 <span>{ultimoRevelado.empresa}</span>
                 <span>·</span>
                 <span className="font-mono">{ultimoRevelado.codigo}</span>
@@ -478,8 +482,14 @@ export function EjecucionPanel({
                           {cargo}
                         </p>
                       )}
-                      <p className="truncate text-xs text-muted-foreground">
-                        {g.empresa} ·{" "}
+                      <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                        <EmpresaLogo
+                          empresaCodigo={g.empresaCodigo}
+                          nombre={g.empresa}
+                          size="xs"
+                        />
+                        <span className="truncate">{g.empresa}</span>
+                        <span>·</span>
                         <span className="font-mono">{g.codigo}</span>
                       </p>
                     </div>

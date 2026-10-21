@@ -6,6 +6,7 @@ import { ScanBarcode } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
+import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/format";
 
@@ -94,10 +95,21 @@ export function PoncheForm({ eventoId }: { eventoId: string }) {
             <p className="truncate text-base font-semibold text-emerald-600 dark:text-emerald-400">
               {ultimo.nombre}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="font-mono">{ultimo.codigo}</span>
-              {ultimo.empresa ? ` · ${ultimo.empresa}` : ""} ·{" "}
-              {formatDateTime(ultimo.registradoAt)}
+              {ultimo.empresa ? (
+                <>
+                  <span>·</span>
+                  <EmpresaLogo
+                    empresaCodigo={ultimo.empresaCodigo}
+                    nombre={ultimo.empresa}
+                    size="xs"
+                  />
+                  <span>{ultimo.empresa}</span>
+                </>
+              ) : null}
+              <span>·</span>
+              <span>{formatDateTime(ultimo.registradoAt)}</span>
             </p>
           </div>
         </div>

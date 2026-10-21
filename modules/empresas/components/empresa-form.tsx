@@ -2,10 +2,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { ImageUp } from "lucide-react";
 import { toast } from "sonner";
 import type { z } from "zod";
 
+import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -26,6 +29,10 @@ type EmpresaFormProps = {
 
 export function EmpresaForm({ empresaId, defaultValues }: EmpresaFormProps) {
   const router = useRouter();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -41,6 +48,17 @@ export function EmpresaForm({ empresaId, defaultValues }: EmpresaFormProps) {
       ...defaultValues,
     },
   });
+
+  function onLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setLogoFile(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setLogoPreview(url);
+    } else {
+      setLogoPreview(null);
+    }
+  }
 
   async function onSubmit(values: FormOutput) {
     const res = await fetch(
@@ -59,6 +77,24 @@ export function EmpresaForm({ empresaId, defaultValues }: EmpresaFormProps) {
       toast.error(body.error?.message ?? "No se pudo guardar la empresa");
       return;
     }
+
+    const savedId: string | undefined = body.data?.id ?? empresaId;
+    if (logoFile && savedId) {
+      const fd = new FormData();
+      fd.append("file", logoFile);
+      const logoRes = await fetch(`/api/empresas/${savedId}/logo`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!logoRes.ok) {
+        const logoBody = await logoRes.json().catch(() => ({}));
+        toast.warning(
+          logoBody.error?.message ??
+            "La empresa se guardó, pero no se pudo subir el logo",
+        );
+      }
+    }
+
     toast.success(empresaId ? "Empresa actualizada" : "Empresa creada");
     router.push("/empresas");
     router.refresh();
@@ -103,9 +139,53 @@ export function EmpresaForm({ empresaId, defaultValues }: EmpresaFormProps) {
             {...register("ubicacion")}
           />
         </Field>
+        <Field>
+          <FieldLabel htmlFor="logo">Logo de la empresa (opcional)</FieldLabel>
+          <div className="flex items-center gap-4">
+            {logoPreview ? (
+              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-white p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoPreview}
+                  alt="Vista previa del logo"
+                  className="size-full object-contain"
+                />
+              </div>
+            ) : (
+              <EmpresaLogo
+                empresaCodigo={defaultValues?.codigo}
+                nombre={defaultValues?.nombre || "Empresa"}
+                size="lg"
+              />
+            )}
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <input
+                ref={logoInputRef}
+                id="logo"
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={onLogoChange}
+                className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border file:border-input file:bg-transparent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-muted"
+              />
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ImageUp className="size-3.5 shrink-0 text-indigo-500" />
+                <span>
+                  También puede colocar{" "}
+                  <span className="font-mono">
+                    public/fotos/{defaultValues?.codigo || "CODIGO"}/logo.png
+                  </span>
+                </span>
+              </p>
+            </div>
+          </div>
+        </Field>
         <div className="flex gap-2">
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Guardando…" : empresaId ? "Guardar" : "Crear empresa"}
+            {isSubmitting
+              ? "Guardando…"
+              : empresaId
+                ? "Guardar"
+                : "Crear empresa"}
           </Button>
           <Button
             type="button"

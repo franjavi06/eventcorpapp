@@ -7,9 +7,11 @@ import { ValidationError } from "@/lib/errors";
 import {
   ensureEmpresaFotoDir,
   findEmpleadoFotoFile,
+  findEmpresaLogoFile,
   renameEmpresaFotoDir,
   sanitizeFotoSegment,
   saveEmpleadoFoto,
+  saveEmpresaLogo,
 } from "@/modules/empleados/lib/fotos";
 
 describe("fotos de empleados por empresa", () => {
@@ -82,6 +84,24 @@ describe("fotos de empleados por empresa", () => {
     expect(await fs.readFile(porCeroInicial!.filePath, "utf8")).toBe(
       "foto-3377",
     );
+  });
+
+  it("guarda y encuentra el logo de la empresa sin colisionar con fotos de empleados", async () => {
+    await saveEmpresaLogo("IB", Buffer.from("<svg/>"), ".svg");
+    await saveEmpleadoFoto("IB", "0033", Buffer.from("foto-33"), ".jpg");
+
+    const logo = await findEmpresaLogoFile("IB");
+    expect(logo).not.toBeNull();
+    expect(logo?.contentType).toBe("image/svg+xml");
+
+    // El archivo logo.svg no se devuelve como foto de empleado
+    const comoEmpleado = await findEmpleadoFotoFile("IB", "logo");
+    expect(comoEmpleado).toBeNull();
+
+    // Reemplazar logo con otra extensión elimina el anterior
+    await saveEmpresaLogo("IB", Buffer.from("png-logo"), ".png");
+    const nuevoLogo = await findEmpresaLogoFile("IB");
+    expect(nuevoLogo?.contentType).toBe("image/png");
   });
 
   it("rechaza segmentos inseguros (path traversal)", () => {
