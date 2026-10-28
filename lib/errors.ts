@@ -3,6 +3,8 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "BAD_REQUEST"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
   | "INTERNAL";
 
 export class AppError extends Error {
@@ -38,5 +40,20 @@ export class ConflictError extends AppError {
 export class BadRequestError extends AppError {
   constructor(message: string, details?: unknown) {
     super("BAD_REQUEST", message, 400, details);
+  }
+}
+
+export class UnauthorizedError extends AppError {
+  constructor(message = "Sesión no iniciada o expirada", details?: unknown) {
+    super("UNAUTHORIZED", message, 401, details);
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(
+    message = "No tiene permisos para realizar esta operación",
+    details?: unknown,
+  ) {
+    super("FORBIDDEN", message, 403, details);
   }
 }

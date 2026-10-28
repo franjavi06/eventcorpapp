@@ -1,4 +1,5 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   eventoCreateSchema,
   eventoListQuerySchema,
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requirePermission("EVENTOS_WRITE");
     const input = await parseJson(request, eventoCreateSchema);
     return ok(await createEvento(input), 201);
   } catch (error) {

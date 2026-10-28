@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getSessionFromCookies } from "@/modules/auth/lib/session";
 
 export type AuditEntry = {
   /** Evento relacionado, cuando aplica (para filtrar el historial). */
@@ -29,12 +30,19 @@ type Cliente = Prisma.TransactionClient | typeof prisma;
  */
 export async function registrarAuditoria(entry: AuditEntry, tx?: Cliente) {
   const client = tx ?? prisma;
+  let actor = entry.actor ?? null;
+  if (!actor) {
+    const session = await getSessionFromCookies();
+    if (session?.username) {
+      actor = session.username;
+    }
+  }
   const data = {
     eventoId: entry.eventoId ?? null,
     entidad: entry.entidad,
     entidadId: entry.entidadId ?? null,
     accion: entry.accion,
-    actor: entry.actor ?? null,
+    actor,
     antes: entry.antes ?? Prisma.JsonNull,
     despues: entry.despues ?? Prisma.JsonNull,
   };

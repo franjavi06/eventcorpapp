@@ -6,6 +6,7 @@ import { AppNav } from "@/components/layout/app-nav";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { TopHeader } from "@/components/layout/top-header";
+import { UserSessionBox } from "@/components/layout/user-session-box";
 import { Badge } from "@/components/ui/badge";
 
 /** Nav estático sin estado activo: shell prerenderizable para Cache Components. */
@@ -69,19 +70,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
         </div>
         <footer className="space-y-3 border-t border-sidebar-border p-4">
           <ThemeToggle />
-          <div className="flex items-center gap-3 rounded-xl border border-sidebar-border p-2.5">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-indigo-400/30 bg-indigo-600 text-xs font-bold text-white">
-              EC
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-foreground">
-                Modo Desarrollo
-              </p>
-              <p className="truncate text-[11px] text-muted-foreground">
-                Entorno local · sin autenticación
-              </p>
-            </div>
-          </div>
+          <UserSessionBox />
         </footer>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">

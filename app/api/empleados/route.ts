@@ -1,4 +1,5 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   empleadoCreateSchema,
   empleadoListQuerySchema,
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requirePermission("EMPLEADOS_WRITE");
     const input = await parseJson(request, empleadoCreateSchema);
     return ok(await createEmpleado(input), 201);
   } catch (error) {
