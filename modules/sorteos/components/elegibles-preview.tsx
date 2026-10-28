@@ -48,10 +48,20 @@ type Elegible = {
   asistencia: { registradoAt: string } | null;
 };
 
+type CuotaResumen = {
+  id: string;
+  entidad: string;
+  campo: string;
+  valor: string;
+  requeridos: number;
+  disponibles: number;
+};
+
 type SimulacionResult = {
   totalElegibles: number;
   cantidadGanadores: number;
   reglasAplicadas: number;
+  cuotasAplicadas?: number;
   ganadoresSimulados: (Elegible & { orden: number })[];
 };
 
@@ -88,6 +98,7 @@ export function ElegiblesPreview({
     total: number;
     data: Elegible[];
     reglasAplicadas: number;
+    cuotasResumen?: CuotaResumen[];
   } | null>(null);
   const [simModalOpen, setSimModalOpen] = useState(false);
   const [simulacion, setSimulacion] = useState<SimulacionResult | null>(null);
@@ -162,6 +173,29 @@ export function ElegiblesPreview({
             </p>
           )}
         </div>
+
+        {result?.cuotasResumen && result.cuotasResumen.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/30 p-3 text-xs">
+            <span className="font-semibold text-muted-foreground">
+              Disponibilidad por cuota:
+            </span>
+            {result.cuotasResumen.map((c) => {
+              const ok = c.disponibles >= c.requeridos;
+              return (
+                <Badge
+                  key={c.id}
+                  variant={ok ? "outline" : "destructive"}
+                  className="gap-1.5"
+                >
+                  <span>{c.valor}:</span>
+                  <span className="font-mono font-bold">
+                    {c.disponibles} disp. / {c.requeridos} req.
+                  </span>
+                </Badge>
+              );
+            })}
+          </div>
+        )}
 
         {result && result.data.length > 0 && (
           <Table>

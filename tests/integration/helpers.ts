@@ -10,6 +10,7 @@ export async function cleanDatabase() {
   await prisma.permiso.deleteMany();
   await prisma.sorteoGanador.deleteMany();
   await prisma.sorteoEjecucion.deleteMany();
+  await prisma.sorteoCuota.deleteMany();
   await prisma.sorteoRegla.deleteMany();
   await prisma.sorteo.deleteMany();
   await prisma.asistencia.deleteMany();

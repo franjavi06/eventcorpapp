@@ -14,6 +14,7 @@ import {
 } from "@/modules/sorteos/services/sorteo.service";
 import { ElegiblesPreview } from "@/modules/sorteos/components/elegibles-preview";
 import { EjecucionesHistorial } from "@/modules/sorteos/components/ejecuciones-historial";
+import { CuotaBuilder } from "@/modules/sorteos/components/cuota-builder";
 import { ReglaBuilder } from "@/modules/sorteos/components/regla-builder";
 import { SorteoForm } from "@/modules/sorteos/components/sorteo-form";
 
@@ -52,6 +53,7 @@ async function SorteoDetailContent({
       </p>
 
       <SorteoForm
+        key={`${sorteo.id}-${sorteo.cantidadGanadores}-${sorteo.updatedAt.toISOString()}`}
         eventoId={sorteo.eventoId}
         sorteoId={sorteo.id}
         defaultValues={{
@@ -72,6 +74,13 @@ async function SorteoDetailContent({
         eventoId={sorteo.eventoId}
         sorteoId={sorteo.id}
         reglas={sorteo.reglas}
+        sugerencias={sugerencias}
+      />
+
+      <CuotaBuilder
+        eventoId={sorteo.eventoId}
+        sorteoId={sorteo.id}
+        cuotas={sorteo.cuotas}
         sugerencias={sugerencias}
       />
 

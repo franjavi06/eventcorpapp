@@ -1,13 +1,15 @@
 import { randomInt } from "node:crypto";
 
-import type { Prisma, SorteoRegla } from "@/generated/prisma/client";
+import type { Prisma, SorteoCuota, SorteoRegla } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
-import { isRecordNotFound } from "@/lib/prisma-errors";
+import { isRecordNotFound, isUniqueViolation } from "@/lib/prisma-errors";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
 import { eventoRepository } from "@/modules/eventos/repositories/evento.repository";
 import { getCampoDef } from "@/modules/sorteos/lib/reglas-catalogo";
 import {
+  cuotaSchema,
+  cuotaUpdateSchema,
   reglaSchema,
   reglaUpdateSchema,
   sorteoCreateSchema,
@@ -15,6 +17,7 @@ import {
   type SorteoListQuery,
 } from "@/modules/sorteos/schemas/sorteo.schema";
 import {
+  cuotaRepository,
   reglaRepository,
   sorteoRepository,
 } from "@/modules/sorteos/repositories/sorteo.repository";
@@ -227,6 +230,127 @@ export async function removeRegla(reglaId: string) {
   }
 }
 
+async function syncCantidadGanadoresConCuotas(sorteoId: string) {
+  const cuotasActivas = await prisma.sorteoCuota.findMany({
+    where: { sorteoId, activo: true },
+    select: { cantidad: true },
+  });
+  if (cuotasActivas.length === 0) return;
+  const totalCuotas = cuotasActivas.reduce((acc, c) => acc + c.cantidad, 0);
+  if (totalCuotas > 0) {
+    await prisma.sorteo.update({
+      where: { id: sorteoId },
+      data: { cantidadGanadores: totalCuotas },
+    });
+  }
+}
+
+export async function addCuota(sorteoId: string, rawInput: unknown) {
+  const sorteo = await assertSorteo(sorteoId);
+  await assertSorteoEditable(sorteoId);
+  const input = cuotaSchema.parse(rawInput);
+  try {
+    const cuota = await cuotaRepository.create({ sorteoId, ...input });
+    await syncCantidadGanadoresConCuotas(sorteoId);
+    await registrarAuditoria({
+      eventoId: sorteo.eventoId,
+      entidad: "SorteoCuota",
+      entidadId: cuota.id,
+      accion: "CREAR_CUOTA",
+      despues: {
+        sorteoId,
+        entidad: cuota.entidad,
+        campo: cuota.campo,
+        valor: cuota.valor,
+        cantidad: cuota.cantidad,
+      },
+    });
+    return cuota;
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new ConflictError(
+        "Ya existe una cuota para ese campo y valor en este sorteo",
+      );
+    }
+    throw error;
+  }
+}
+
+export async function updateCuota(cuotaId: string, rawInput: unknown) {
+  const actual = await cuotaRepository.findById(cuotaId);
+  if (!actual) throw new NotFoundError("Cuota no encontrada");
+  await assertSorteoEditable(actual.sorteoId);
+
+  const partial = cuotaUpdateSchema.parse(rawInput);
+  const merged = cuotaSchema.parse({
+    entidad: partial.entidad ?? actual.entidad,
+    campo: partial.campo ?? actual.campo,
+    valor: partial.valor ?? actual.valor,
+    cantidad: partial.cantidad ?? actual.cantidad,
+    orden: partial.orden ?? actual.orden,
+    activo: partial.activo ?? actual.activo,
+  });
+
+  try {
+    const cuota = await cuotaRepository.update(cuotaId, merged);
+    await syncCantidadGanadoresConCuotas(actual.sorteoId);
+    const sorteo = await assertSorteo(actual.sorteoId);
+    await registrarAuditoria({
+      eventoId: sorteo.eventoId,
+      entidad: "SorteoCuota",
+      entidadId: cuota.id,
+      accion: "ACTUALIZAR_CUOTA",
+      antes: {
+        campo: actual.campo,
+        valor: actual.valor,
+        cantidad: actual.cantidad,
+        activo: actual.activo,
+      },
+      despues: {
+        campo: cuota.campo,
+        valor: cuota.valor,
+        cantidad: cuota.cantidad,
+        activo: cuota.activo,
+      },
+    });
+    return cuota;
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new ConflictError(
+        "Ya existe una cuota para ese campo y valor en este sorteo",
+      );
+    }
+    throw error;
+  }
+}
+
+export async function removeCuota(cuotaId: string) {
+  const actual = await cuotaRepository.findById(cuotaId);
+  if (actual) await assertSorteoEditable(actual.sorteoId);
+  try {
+    await cuotaRepository.remove(cuotaId);
+    if (actual) {
+      await syncCantidadGanadoresConCuotas(actual.sorteoId);
+      const sorteo = await assertSorteo(actual.sorteoId);
+      await registrarAuditoria({
+        eventoId: sorteo.eventoId,
+        entidad: "SorteoCuota",
+        entidadId: cuotaId,
+        accion: "ELIMINAR_CUOTA",
+        antes: {
+          campo: actual.campo,
+          valor: actual.valor,
+          cantidad: actual.cantidad,
+        },
+      });
+    }
+    return { removed: true };
+  } catch (error) {
+    if (isRecordNotFound(error)) throw new NotFoundError("Cuota no encontrada");
+    throw error;
+  }
+}
+
 /**
  * Traduce una regla a un fragmento de consulta Prisma sobre el participante.
  * Mapeo declarativo: solo campos del catálogo, nunca nombres del cliente.
@@ -315,12 +439,128 @@ export async function listGanadorEmpleadoIds(eventoId: string) {
   return rows.map((r) => r.empleadoId);
 }
 
+export type CandidatoParaCuota = {
+  id: string;
+  empleadoId: string;
+  empleado: {
+    codigo: string;
+    departamento: string | null;
+    clasificacion: string | null;
+    zona: string | null;
+    puesto: string | null;
+    empresa: {
+      codigo: string;
+      clasificacion?: string | null;
+      ubicacion?: string | null;
+    };
+  };
+};
+
+export function candidatoCumpleCuota(
+  candidato: CandidatoParaCuota,
+  cuota: Pick<SorteoCuota, "entidad" | "campo" | "valor">,
+): boolean {
+  const esperado = cuota.valor.trim().toLowerCase();
+  let actual: string | null | undefined;
+  if (cuota.entidad === "EMPRESA") {
+    const emp = candidato.empleado.empresa;
+    if (cuota.campo === "codigo") actual = emp.codigo;
+    else if (cuota.campo === "clasificacion") actual = emp.clasificacion;
+    else if (cuota.campo === "ubicacion") actual = emp.ubicacion;
+  } else {
+    const e = candidato.empleado;
+    if (cuota.campo === "departamento") actual = e.departamento;
+    else if (cuota.campo === "clasificacion") actual = e.clasificacion;
+    else if (cuota.campo === "zona") actual = e.zona;
+    else if (cuota.campo === "puesto") actual = e.puesto;
+    else if (cuota.campo === "codigo") actual = e.codigo;
+  }
+  return (actual?.trim().toLowerCase() ?? "") === esperado;
+}
+
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
+/**
+ * Selecciona `cantidadTotal` candidatos respetando las cuotas activas.
+ * Si no hay cuotas activas, selecciona al azar de todo el pool.
+ * Si hay cuotas activas, extrae `cuota.cantidad` de cada grupo y el remanente
+ * (si `cantidadTotal > sumaCuotas`) del resto de candidatos no seleccionados.
+ */
+export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
+  candidatos: T[],
+  cantidadTotal: number,
+  cuotasActivas: Pick<SorteoCuota, "entidad" | "campo" | "valor" | "cantidad">[],
+): { ok: true; seleccionados: T[] } | { ok: false; error: string } {
+  if (cuotasActivas.length === 0) {
+    if (candidatos.length < cantidadTotal) {
+      return {
+        ok: false,
+        error: `Candidatos insuficientes: se requieren ${cantidadTotal} y hay ${candidatos.length}`,
+      };
+    }
+    const copia = shuffleInPlace([...candidatos]);
+    return { ok: true, seleccionados: copia.slice(0, cantidadTotal) };
+  }
+
+  const sumaCuotas = cuotasActivas.reduce((acc, c) => acc + c.cantidad, 0);
+  if (sumaCuotas > cantidadTotal) {
+    return {
+      ok: false,
+      error: `La suma de cuotas (${sumaCuotas}) supera la cantidad total de ganadores del sorteo (${cantidadTotal})`,
+    };
+  }
+
+  const usados = new Set<string>();
+  const seleccionados: T[] = [];
+
+  for (const cuota of cuotasActivas) {
+    const def = getCampoDef(cuota.entidad, cuota.campo);
+    const labelCampo = def?.label ?? cuota.campo;
+    const disponibles = candidatos.filter(
+      (c) => !usados.has(c.empleadoId) && candidatoCumpleCuota(c, cuota),
+    );
+    if (disponibles.length < cuota.cantidad) {
+      return {
+        ok: false,
+        error: `Candidatos insuficientes para la cuota ${labelCampo} = "${cuota.valor}": se requieren ${cuota.cantidad} y hay ${disponibles.length} disponible(s)`,
+      };
+    }
+    const barajados = shuffleInPlace([...disponibles]);
+    const elegidosGrupo = barajados.slice(0, cuota.cantidad);
+    for (const c of elegidosGrupo) {
+      usados.add(c.empleadoId);
+      seleccionados.push(c);
+    }
+  }
+
+  const faltantes = cantidadTotal - seleccionados.length;
+  if (faltantes > 0) {
+    const resto = candidatos.filter((c) => !usados.has(c.empleadoId));
+    if (resto.length < faltantes) {
+      return {
+        ok: false,
+        error: `Candidatos insuficientes para completar los ${faltantes} cupos libres restantes: solo quedan ${resto.length}`,
+      };
+    }
+    const barajadosResto = shuffleInPlace([...resto]);
+    seleccionados.push(...barajadosResto.slice(0, faltantes));
+  }
+
+  return { ok: true, seleccionados };
+}
+
 export async function listarElegibles(sorteoId: string, take = 50) {
   const sorteo = await assertSorteo(sorteoId);
   const excluidos = await listGanadorEmpleadoIds(sorteo.eventoId);
   const where = elegiblesWhere(sorteo, excluidos);
 
-  const [data, total] = await Promise.all([
+  const [data, total, todosParaCuotas] = await Promise.all([
     prisma.eventoParticipante.findMany({
       where,
       take,
@@ -335,6 +575,7 @@ export async function listarElegibles(sorteoId: string, take = 50) {
             codigo: true,
             nombres: true,
             apellidos: true,
+            puesto: true,
             departamento: true,
             clasificacion: true,
             zona: true,
@@ -346,12 +587,49 @@ export async function listarElegibles(sorteoId: string, take = 50) {
       },
     }),
     prisma.eventoParticipante.count({ where }),
+    sorteo.cuotas.some((c) => c.activo)
+      ? prisma.eventoParticipante.findMany({
+          where,
+          select: {
+            id: true,
+            empleadoId: true,
+            empleado: {
+              select: {
+                codigo: true,
+                departamento: true,
+                clasificacion: true,
+                zona: true,
+                puesto: true,
+                empresa: {
+                  select: {
+                    codigo: true,
+                    clasificacion: true,
+                    ubicacion: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const cuotasActivas = sorteo.cuotas.filter((c) => c.activo);
+  const cuotasResumen = cuotasActivas.map((c) => ({
+    id: c.id,
+    entidad: c.entidad,
+    campo: c.campo,
+    valor: c.valor,
+    requeridos: c.cantidad,
+    disponibles: todosParaCuotas.filter((cand) => candidatoCumpleCuota(cand, c))
+      .length,
+  }));
 
   return {
     total,
     data,
     reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
+    cuotasResumen,
   };
 }
 
@@ -374,32 +652,36 @@ export async function simularSorteo(sorteoId: string) {
           clasificacion: true,
           zona: true,
           fechaIngreso: true,
-          empresa: { select: { codigo: true, nombre: true } },
+          empresa: {
+            select: {
+              codigo: true,
+              nombre: true,
+              clasificacion: true,
+              ubicacion: true,
+            },
+          },
         },
       },
       asistencia: { select: { registradoAt: true } },
     },
   });
 
-  if (candidatos.length < sorteo.cantidadGanadores) {
-    throw new ValidationError(
-      `Candidatos elegibles insuficientes para simular: hay ${candidatos.length} y el sorteo requiere ${sorteo.cantidadGanadores}`,
-    );
-  }
-
-  const copia = [...candidatos];
-  const seleccionados: typeof candidatos = [];
-  for (let i = 0; i < sorteo.cantidadGanadores; i++) {
-    const j = randomInt(i, copia.length);
-    [copia[i], copia[j]] = [copia[j]!, copia[i]!];
-    seleccionados.push(copia[i]!);
+  const cuotasActivas = sorteo.cuotas.filter((c) => c.activo);
+  const resultado = seleccionarCandidatosConCuotas(
+    candidatos,
+    sorteo.cantidadGanadores,
+    cuotasActivas,
+  );
+  if (!resultado.ok) {
+    throw new ValidationError(resultado.error);
   }
 
   return {
     totalElegibles: candidatos.length,
     cantidadGanadores: sorteo.cantidadGanadores,
     reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
-    ganadoresSimulados: seleccionados.map((c, idx) => ({
+    cuotasAplicadas: cuotasActivas.length,
+    ganadoresSimulados: resultado.seleccionados.map((c, idx) => ({
       orden: idx + 1,
       id: c.id,
       empleado: c.empleado,

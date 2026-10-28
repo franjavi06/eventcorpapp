@@ -14,8 +14,10 @@ import {
   listEjecuciones,
 } from "@/modules/sorteos/services/ejecucion.service";
 import {
+  addCuota,
   addRegla,
   createSorteo,
+  getSorteo,
   updateSorteo,
 } from "@/modules/sorteos/services/sorteo.service";
 import { cleanDatabase } from "./helpers";
@@ -265,5 +267,57 @@ describe("ejecución de sorteos", () => {
     const [eje] = await listEjecuciones(sorteo.id);
     expect(eje.reglasSnapshot).toHaveLength(1);
     expect(eje.candidatosSnapshot).toHaveLength(2);
+  });
+
+  it("reparte exactamente los cupos por departamento usando SorteoCuota y falla si falta cupo en un área", async () => {
+    const { empresa, evento } = await setup(0);
+    // 2 ADMINISTRACION, 3 OPERACIONES, 1 COMERCIAL
+    const creados: { id: string; dept: string }[] = [];
+    for (const [i, dept] of [
+      [1, "ADMINISTRACION"],
+      [2, "ADMINISTRACION"],
+      [3, "OPERACIONES"],
+      [4, "OPERACIONES"],
+      [5, "OPERACIONES"],
+      [6, "COMERCIAL"],
+    ] as const) {
+      const e = await createEmpleado({
+        ...empleadoInput(empresa.id, i),
+        departamento: dept,
+      });
+      await checkIn(evento.id, { empleadoId: e.id });
+      creados.push({ id: e.id, dept });
+    }
+
+    const sorteo = await createSorteo(evento.id, {
+      ...SORTEO,
+      cantidadGanadores: 1,
+      estado: "ACTIVO",
+    });
+
+    await addCuota(sorteo.id, {
+      entidad: "EMPLEADO",
+      campo: "departamento",
+      valor: "ADMINISTRACION",
+      cantidad: 1,
+    });
+    await addCuota(sorteo.id, {
+      entidad: "EMPLEADO",
+      campo: "departamento",
+      valor: "OPERACIONES",
+      cantidad: 2,
+    });
+
+    const actualizado = await getSorteo(sorteo.id);
+    expect(actualizado.cantidadGanadores).toBe(3);
+
+    const res = await ejecutarSorteo(sorteo.id);
+    expect(res.ganadores).toHaveLength(3);
+
+    const deptsGanadores = res.ganadores.map(
+      (id) => creados.find((c) => c.id === id)?.dept,
+    );
+    expect(deptsGanadores.filter((d) => d === "ADMINISTRACION")).toHaveLength(1);
+    expect(deptsGanadores.filter((d) => d === "OPERACIONES")).toHaveLength(2);
   });
 });

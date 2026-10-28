@@ -173,10 +173,30 @@ model Sorteo {
 
   evento      Evento            @relation(fields: [eventoId], references: [id], onDelete: Cascade)
   reglas      SorteoRegla[]
+  cuotas      SorteoCuota[]
   ejecuciones SorteoEjecucion[]
 
   @@index([eventoId, estado])
   @@map("sorteos")
+}
+
+model SorteoCuota {
+  id        String       @id @default(uuid()) @db.Uuid
+  sorteoId  String       @map("sorteo_id") @db.Uuid
+  entidad   ReglaEntidad @default(EMPLEADO)
+  campo     String       @db.VarChar(50)
+  valor     String       @db.VarChar(300)
+  cantidad  Int
+  orden     Int          @default(0)
+  activo    Boolean      @default(true)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  sorteo Sorteo @relation(fields: [sorteoId], references: [id], onDelete: Cascade)
+
+  @@unique([sorteoId, entidad, campo, valor])
+  @@index([sorteoId, activo])
+  @@map("sorteo_cuotas")
 }
 
 model SorteoRegla {

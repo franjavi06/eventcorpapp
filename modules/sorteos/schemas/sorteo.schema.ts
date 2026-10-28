@@ -116,7 +116,37 @@ export const reglaIdParamsSchema = sorteoIdParamsSchema.extend({
   reglaId: uuidSchema,
 });
 
+const cuotaBaseSchema = z.object({
+  entidad: reglaEntidadSchema.default("EMPLEADO"),
+  campo: z.string().trim().min(1).max(50),
+  valor: z.string().trim().min(1, "El valor es obligatorio").max(300),
+  cantidad: z.coerce
+    .number()
+    .int("La cantidad debe ser un entero")
+    .positive("La cantidad debe ser mayor que cero"),
+  orden: z.coerce.number().int().default(0),
+  activo: z.boolean().default(true),
+});
+
+export const cuotaSchema = cuotaBaseSchema.superRefine((cuota, ctx) => {
+  const def = getCampoDef(cuota.entidad, cuota.campo);
+  if (!def || def.tipo !== "texto") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["campo"],
+      message: `El campo "${cuota.campo}" no está permitido para cuotas de ${cuota.entidad}`,
+    });
+  }
+});
+
+export const cuotaUpdateSchema = cuotaBaseSchema.partial();
+
+export const cuotaIdParamsSchema = sorteoIdParamsSchema.extend({
+  cuotaId: uuidSchema,
+});
+
 export type SorteoCreateInput = z.output<typeof sorteoCreateSchema>;
 export type SorteoUpdateInput = z.output<typeof sorteoUpdateSchema>;
 export type SorteoListQuery = z.output<typeof sorteoListQuerySchema>;
 export type ReglaInput = z.output<typeof reglaSchema>;
+export type CuotaInput = z.output<typeof cuotaSchema>;

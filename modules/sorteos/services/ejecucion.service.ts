@@ -1,9 +1,10 @@
-import { randomInt } from "node:crypto";
-
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
-import { elegiblesWhere } from "@/modules/sorteos/services/sorteo.service";
+import {
+  elegiblesWhere,
+  seleccionarCandidatosConCuotas,
+} from "@/modules/sorteos/services/sorteo.service";
 import { sorteoRepository } from "@/modules/sorteos/repositories/sorteo.repository";
 
 type EjecucionResultado = {
@@ -63,17 +64,48 @@ export async function ejecutarSorteo(
 
     const candidatos = await tx.eventoParticipante.findMany({
       where,
-      select: { id: true, empleadoId: true },
+      select: {
+        id: true,
+        empleadoId: true,
+        empleado: {
+          select: {
+            codigo: true,
+            departamento: true,
+            clasificacion: true,
+            zona: true,
+            puesto: true,
+            empresa: {
+              select: {
+                codigo: true,
+                clasificacion: true,
+                ubicacion: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     const reglasActivas = sorteo.reglas.filter((r) => r.activo);
-    const reglasSnapshot = reglasActivas.map((r) => ({
-      entidad: r.entidad,
-      campo: r.campo,
-      operador: r.operador,
-      valor: r.valor,
-      orden: r.orden,
-    }));
+    const cuotasActivas = sorteo.cuotas.filter((c) => c.activo);
+    const reglasSnapshot = [
+      ...reglasActivas.map((r) => ({
+        tipo: "REGLA" as const,
+        entidad: r.entidad,
+        campo: r.campo,
+        operador: r.operador,
+        valor: r.valor,
+        orden: r.orden,
+      })),
+      ...cuotasActivas.map((c) => ({
+        tipo: "CUOTA" as const,
+        entidad: c.entidad,
+        campo: c.campo,
+        valor: c.valor,
+        cantidad: c.cantidad,
+        orden: c.orden,
+      })),
+    ];
     const candidatosSnapshot = candidatos.map((c) => c.id);
     const base = {
       sorteoId,
@@ -85,8 +117,14 @@ export async function ejecutarSorteo(
       ejecutadoPor: ejecutadoPor ?? null,
     };
 
-    if (candidatos.length < sorteo.cantidadGanadores) {
-      const error = `Candidatos insuficientes: se requieren ${sorteo.cantidadGanadores} y hay ${candidatos.length}`;
+    const seleccion = seleccionarCandidatosConCuotas(
+      candidatos,
+      sorteo.cantidadGanadores,
+      cuotasActivas,
+    );
+
+    if (!seleccion.ok) {
+      const error = seleccion.error;
       const fallida = await tx.sorteoEjecucion.create({
         data: { ...base, estado: "FALLIDA", error },
       });
@@ -106,15 +144,11 @@ export async function ejecutarSorteo(
         estado: "FALLIDA" as const,
         totalCandidatos: candidatos.length,
         ganadores: [] as string[],
+        error,
       };
     }
 
-    // Fisher-Yates con crypto.randomInt (sin sesgo de módulo)
-    for (let i = candidatos.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [candidatos[i], candidatos[j]] = [candidatos[j], candidatos[i]];
-    }
-    const seleccionados = candidatos.slice(0, sorteo.cantidadGanadores);
+    const seleccionados = seleccion.seleccionados;
 
     const ejecucion = await tx.sorteoEjecucion.create({
       data: { ...base, estado: "COMPLETADA" },
@@ -155,10 +189,9 @@ export async function ejecutarSorteo(
   });
 
   if (resultado.estado === "FALLIDA") {
-    throw new ConflictError(
-      `Candidatos insuficientes: se requieren ${sorteo.cantidadGanadores} y hay ${resultado.totalCandidatos}`,
-      { ejecucionId: resultado.ejecucionId },
-    );
+    throw new ConflictError(resultado.error, {
+      ejecucionId: resultado.ejecucionId,
+    });
   }
   return resultado;
 }

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 const sorteoInclude = {
   reglas: { orderBy: [{ orden: "asc" }, { createdAt: "asc" }] },
-  _count: { select: { reglas: true, ejecuciones: true } },
+  cuotas: { orderBy: [{ orden: "asc" }, { createdAt: "asc" }] },
+  _count: { select: { reglas: true, cuotas: true, ejecuciones: true } },
 } satisfies Prisma.SorteoInclude;
 
 export const sorteoRepository = {
@@ -85,5 +86,23 @@ export const reglaRepository = {
 
   remove(id: string) {
     return prisma.sorteoRegla.delete({ where: { id } });
+  },
+};
+
+export const cuotaRepository = {
+  findById(id: string) {
+    return prisma.sorteoCuota.findUnique({ where: { id } });
+  },
+
+  create(data: Prisma.SorteoCuotaUncheckedCreateInput) {
+    return prisma.sorteoCuota.create({ data });
+  },
+
+  update(id: string, data: Prisma.SorteoCuotaUncheckedUpdateInput) {
+    return prisma.sorteoCuota.update({ where: { id }, data });
+  },
+
+  remove(id: string) {
+    return prisma.sorteoCuota.delete({ where: { id } });
   },
 };
