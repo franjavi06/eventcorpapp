@@ -285,19 +285,18 @@ export async function getCurrentUser(): Promise<UsuarioAutenticado | null> {
 }
 
 /**
- * Verifica que el usuario tenga el permiso requerido.
- * Si `strict` es `false` (por defecto en Route Handlers compartidos con tests
- * automatizados sin cookie), cuando no hay cookie de sesión permite la llamada,
- * pero si hay un usuario autenticado en sesión exige que tenga el permiso.
- * Con `strict: true` exige siempre sesión activa + permiso.
+ * Verifica que el usuario tenga el permiso requerido en el servidor.
+ * Exige por defecto (`strict = true`) sesión activa y que el rol del usuario
+ * incluya el permiso solicitado.
  */
 export async function requirePermission(
   permiso: PermisoCodigo,
   options: { strict?: boolean } = {},
 ): Promise<UsuarioAutenticado | null> {
+  const strict = options.strict ?? true;
   const user = await getCurrentUser();
   if (!user) {
-    if (options.strict) {
+    if (strict) {
       throw new UnauthorizedError("Debe iniciar sesión para continuar");
     }
     return null;

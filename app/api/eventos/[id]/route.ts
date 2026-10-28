@@ -1,5 +1,6 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
 import { idParamSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import { eventoUpdateSchema } from "@/modules/eventos/schemas/evento.schema";
 import {
   getEvento,
@@ -23,6 +24,7 @@ export async function PATCH(
   context: RouteContext<"/api/eventos/[id]">,
 ) {
   try {
+    await requirePermission("EVENTOS_WRITE");
     const { id } = idParamSchema.parse(await context.params);
     const input = await parseJson(request, eventoUpdateSchema);
     return ok(await updateEvento(id, input));

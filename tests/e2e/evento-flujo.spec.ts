@@ -5,8 +5,16 @@ const sufijo = Date.now().toString(36).slice(-6).toUpperCase();
 test.describe("flujo de evento con reporte y auditoría", () => {
   test("crea datos vía API y verifica detalle, reporte y auditoría", async ({
     page,
-    request,
   }) => {
+    const request = page.request;
+    const loginRes = await request.post("/api/auth/login", {
+      data: {
+        identificador: process.env.ADMIN_INITIAL_USER ?? "admin",
+        password: process.env.ADMIN_INITIAL_PASSWORD ?? "Admin123!",
+      },
+    });
+    expect(loginRes.status()).toBe(200);
+
     // --- Semilla determinista vía API ---
     const empresaRes = await request.post("/api/empresas", {
       data: { codigo: `E2E-${sufijo}`, nombre: `Empresa E2E ${sufijo}` },

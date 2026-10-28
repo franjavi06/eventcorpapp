@@ -1,5 +1,6 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
 import { idParamSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import { eventoEmpresaSchema } from "@/modules/eventos/schemas/evento.schema";
 import {
   addEmpresaToEvento,
@@ -29,6 +30,7 @@ export async function POST(
   context: RouteContext<"/api/eventos/[id]/empresas">,
 ) {
   try {
+    await requirePermission("EVENTOS_WRITE");
     const { id } = idParamSchema.parse(await context.params);
     const input = await parseJson(request, eventoEmpresaSchema);
     return ok(await addEmpresaToEvento(id, input), 201);

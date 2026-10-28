@@ -1,4 +1,5 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   reglaIdParamsSchema,
   reglaUpdateSchema,
@@ -13,6 +14,7 @@ export async function PATCH(
   context: RouteContext<"/api/eventos/[id]/sorteos/[sorteoId]/reglas/[reglaId]">,
 ) {
   try {
+    await requirePermission("SORTEOS_WRITE");
     const { reglaId } = reglaIdParamsSchema.parse(await context.params);
     const input = await parseJson(request, reglaUpdateSchema);
     return ok(await updateRegla(reglaId, input));
@@ -26,6 +28,7 @@ export async function DELETE(
   context: RouteContext<"/api/eventos/[id]/sorteos/[sorteoId]/reglas/[reglaId]">,
 ) {
   try {
+    await requirePermission("SORTEOS_WRITE");
     const { reglaId } = reglaIdParamsSchema.parse(await context.params);
     return ok(await removeRegla(reglaId));
   } catch (error) {

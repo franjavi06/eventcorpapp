@@ -1,5 +1,6 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
 import { idParamSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import { empresaUpdateSchema } from "@/modules/empresas/schemas/empresa.schema";
 import {
   getEmpresa,
@@ -23,6 +24,7 @@ export async function PATCH(
   context: RouteContext<"/api/empresas/[id]">,
 ) {
   try {
+    await requirePermission("EMPRESAS_WRITE");
     const { id } = idParamSchema.parse(await context.params);
     const input = await parseJson(request, empresaUpdateSchema);
     return ok(await updateEmpresa(id, input));

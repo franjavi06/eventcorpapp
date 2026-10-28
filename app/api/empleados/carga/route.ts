@@ -3,6 +3,7 @@ import { Workbook } from "exceljs";
 import { handleApiError, ok } from "@/lib/api";
 import { BadRequestError, ValidationError } from "@/lib/errors";
 import { uuidSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import { extraerFilas } from "@/modules/empleados/lib/carga-columns";
 import { importEmpleados } from "@/modules/empleados/services/carga.service";
 
@@ -10,6 +11,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
+    await requirePermission("EMPLEADOS_WRITE");
     const formData = await request.formData();
     const empresaId = uuidSchema.parse(formData.get("empresaId"));
     const file = formData.get("file");

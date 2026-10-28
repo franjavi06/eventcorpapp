@@ -3,6 +3,7 @@ import path from "node:path";
 import { handleApiError, ok } from "@/lib/api";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { idParamSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import { saveEmpresaLogo } from "@/modules/empleados/lib/fotos";
 import { empresaRepository } from "@/modules/empresas/repositories/empresa.repository";
 
@@ -14,6 +15,7 @@ export async function POST(
   context: RouteContext<"/api/empresas/[id]/logo">,
 ) {
   try {
+    await requirePermission("EMPRESAS_WRITE");
     const { id } = idParamSchema.parse(await context.params);
     const empresa = await empresaRepository.findById(id);
     if (!empresa) {

@@ -4,6 +4,7 @@ import { handleApiError, ok } from "@/lib/api";
 import { ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { uuidSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   ensureEmpresaFotoDir,
   normalizeCodigoKey,
@@ -16,6 +17,7 @@ const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 export async function POST(request: Request) {
   try {
+    await requirePermission("EMPLEADOS_WRITE");
     const form = await request.formData();
     const empresaIdRaw = form.get("empresaId");
     const parsedId = uuidSchema.safeParse(empresaIdRaw);

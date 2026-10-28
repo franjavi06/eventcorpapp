@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { handleApiError, ok, parseJson } from "@/lib/api";
 import { uuidSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import { exclusionSchema } from "@/modules/participantes/schemas/participante.schema";
 import {
   excluirDeSorteos,
@@ -18,6 +19,7 @@ export async function PATCH(
   context: RouteContext<"/api/eventos/[id]/participantes/[empleadoId]">,
 ) {
   try {
+    await requirePermission("PARTICIPANTES_WRITE");
     const { id, empleadoId } = paramsSchema.parse(await context.params);
     const input = await parseJson(request, exclusionSchema);
     return ok(await excluirDeSorteos(id, empleadoId, input));
@@ -31,6 +33,7 @@ export async function DELETE(
   context: RouteContext<"/api/eventos/[id]/participantes/[empleadoId]">,
 ) {
   try {
+    await requirePermission("PARTICIPANTES_WRITE");
     const { id, empleadoId } = paramsSchema.parse(await context.params);
     return ok(await removeParticipante(id, empleadoId));
   } catch (error) {

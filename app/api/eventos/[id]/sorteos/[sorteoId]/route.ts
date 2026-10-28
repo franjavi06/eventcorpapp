@@ -1,4 +1,5 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   sorteoIdParamsSchema,
   sorteoUpdateSchema,
@@ -26,6 +27,7 @@ export async function PATCH(
   context: RouteContext<"/api/eventos/[id]/sorteos/[sorteoId]">,
 ) {
   try {
+    await requirePermission("SORTEOS_WRITE");
     const { sorteoId } = sorteoIdParamsSchema.parse(await context.params);
     const input = await parseJson(request, sorteoUpdateSchema);
     return ok(await updateSorteo(sorteoId, input));
@@ -39,6 +41,7 @@ export async function DELETE(
   context: RouteContext<"/api/eventos/[id]/sorteos/[sorteoId]">,
 ) {
   try {
+    await requirePermission("SORTEOS_WRITE");
     const { sorteoId } = sorteoIdParamsSchema.parse(await context.params);
     return ok(await deleteSorteo(sorteoId));
   } catch (error) {

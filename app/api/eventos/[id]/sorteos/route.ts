@@ -1,5 +1,6 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
 import { idParamSchema } from "@/lib/validations/common";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   sorteoCreateSchema,
   sorteoListQuerySchema,
@@ -28,6 +29,7 @@ export async function POST(
   context: RouteContext<"/api/eventos/[id]/sorteos">,
 ) {
   try {
+    await requirePermission("SORTEOS_WRITE");
     const { id } = idParamSchema.parse(await context.params);
     const input = await parseJson(request, sorteoCreateSchema);
     return ok(await createSorteo(id, input), 201);

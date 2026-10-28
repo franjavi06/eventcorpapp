@@ -1,4 +1,5 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
+import { requirePermission } from "@/modules/auth/services/auth.service";
 import {
   reglaSchema,
   sorteoIdParamsSchema,
@@ -26,6 +27,7 @@ export async function POST(
   context: RouteContext<"/api/eventos/[id]/sorteos/[sorteoId]/reglas">,
 ) {
   try {
+    await requirePermission("SORTEOS_WRITE");
     const { sorteoId } = sorteoIdParamsSchema.parse(await context.params);
     const input = await parseJson(request, reglaSchema);
     return ok(await addRegla(sorteoId, input), 201);
