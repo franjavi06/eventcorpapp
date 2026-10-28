@@ -75,5 +75,13 @@ test.describe("flujo de evento con reporte y auditoría", () => {
     ).toBeVisible();
     await expect(page.getByText("CREAR")).toBeVisible();
     await expect(page.getByText("CHECK_IN")).toBeVisible();
+
+    // --- Desactivar datos de prueba para no contaminar el dashboard ---
+    await request.patch(`/api/eventos/${evento.id}`, {
+      data: { estado: "CANCELADO" },
+    });
+    await request.patch(`/api/empresas/${empresa.id}`, {
+      data: { activo: false },
+    });
   });
 });

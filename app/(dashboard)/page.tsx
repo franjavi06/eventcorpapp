@@ -35,60 +35,61 @@ const SORTEO_ESTADO_STYLE: Record<string, string> = {
 async function DashboardOverview() {
   await connection();
 
-  const [
-    reporte,
-    empresasActivas,
-    empresasList,
-    eventoActivoOBorrador,
-    ultimosGanadores,
-    ultimasAsistencias,
-  ] = await Promise.all([
-    getReporteGlobal(),
-    prisma.empresa.count({ where: { activo: true } }),
-    prisma.empresa.findMany({
-      orderBy: { nombre: "asc" },
-      take: 6,
-      select: {
-        id: true,
-        codigo: true,
-        nombre: true,
-        activo: true,
-        _count: { select: { empleados: true } },
-      },
-    }),
-    prisma.evento.findFirst({
-      where: { estado: { in: ["ACTIVO", "BORRADOR"] } },
-      orderBy: [{ estado: "asc" }, { fechaInicio: "asc" }],
-      select: {
-        id: true,
-        codigo: true,
-        nombre: true,
-        ubicacion: true,
-        fechaInicio: true,
-        estado: true,
-        empresas: {
-          select: {
-            empresa: {
-              select: { id: true, codigo: true, nombre: true, activo: true },
+  const [reporte, empresasActivas, empresasList, eventoActivoOBorrador] =
+    await Promise.all([
+      getReporteGlobal(),
+      prisma.empresa.count({ where: { activo: true } }),
+      prisma.empresa.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" },
+        take: 6,
+        select: {
+          id: true,
+          codigo: true,
+          nombre: true,
+          activo: true,
+          _count: { select: { empleados: true } },
+        },
+      }),
+      prisma.evento.findFirst({
+        where: { estado: { in: ["ACTIVO", "BORRADOR"] } },
+        orderBy: [{ estado: "desc" }, { fechaInicio: "desc" }],
+        select: {
+          id: true,
+          codigo: true,
+          nombre: true,
+          ubicacion: true,
+          fechaInicio: true,
+          estado: true,
+          empresas: {
+            select: {
+              empresa: {
+                select: { id: true, codigo: true, nombre: true, activo: true },
+              },
+            },
+            orderBy: { empresa: { nombre: "asc" } },
+          },
+          sorteos: {
+            orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
+            take: 6,
+            select: {
+              id: true,
+              nombre: true,
+              orden: true,
+              estado: true,
+              cantidadGanadores: true,
+              _count: { select: { ejecuciones: true } },
             },
           },
-          orderBy: { empresa: { nombre: "asc" } },
         },
-        sorteos: {
-          orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
-          take: 6,
-          select: {
-            id: true,
-            nombre: true,
-            orden: true,
-            estado: true,
-            cantidadGanadores: true,
-            _count: { select: { ejecuciones: true } },
-          },
-        },
-      },
-    }),
+      }),
+    ]);
+
+  const eventoDestacado = eventoActivoOBorrador;
+
+  const [ultimosGanadores, ultimasAsistencias] = await Promise.all([
     prisma.sorteoGanador.findMany({
+      where: eventoDestacado ? { eventoId: eventoDestacado.id } : undefined,
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
@@ -114,6 +115,9 @@ async function DashboardOverview() {
       },
     }),
     prisma.asistencia.findMany({
+      where: eventoDestacado
+        ? { participante: { eventoId: eventoDestacado.id } }
+        : undefined,
       orderBy: { registradoAt: "desc" },
       take: 5,
       include: {
@@ -133,8 +137,6 @@ async function DashboardOverview() {
       },
     }),
   ]);
-
-  const eventoDestacado = eventoActivoOBorrador;
   const { totales } = reporte;
   const activosCount = totales.eventosPorEstado.ACTIVO ?? 0;
 

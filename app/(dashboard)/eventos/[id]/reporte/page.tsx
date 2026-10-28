@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { Download } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -57,11 +58,21 @@ async function ReporteContent({
       >
         ← Volver al evento
       </Link>
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Reporte — {r.evento.nombre}
-        </h1>
-        <Badge>{r.evento.estado}</Badge>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Reporte — {r.evento.nombre}
+          </h1>
+          <Badge>{r.evento.estado}</Badge>
+        </div>
+        <a
+          href={`/api/eventos/${parsed.data.id}/reporte/excel`}
+          download
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <Download className="size-4" />
+          Exportar Excel (.xlsx)
+        </a>
       </div>
       <p className="text-sm text-muted-foreground">
         {r.evento.codigo} · {formatDateTime(r.evento.fechaInicio)} —{" "}
