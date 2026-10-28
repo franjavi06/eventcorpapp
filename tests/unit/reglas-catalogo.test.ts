@@ -44,6 +44,12 @@ describe("catálogo de reglas", () => {
     expect(
       validateReglaValor({ tipo: "texto", label: "" }, "X".repeat(301)),
     ).not.toBeNull();
+    expect(
+      validateReglaValor({ tipo: "meses", label: "" }, "6"),
+    ).toBeNull();
+    expect(
+      validateReglaValor({ tipo: "meses", label: "" }, "0"),
+    ).not.toBeNull();
   });
 });
 
@@ -119,6 +125,17 @@ describe("reglaToWhere", () => {
       valor: "2020-01-01",
     }) as { empleado: { fechaIngreso: { lt: Date } } };
     expect(where.empleado.fechaIngreso.lt).toEqual(new Date("2020-01-01"));
+  });
+
+  it("mapea antiguedadMeses DESPUES_DE (>= N meses) a fechaIngreso.lte", () => {
+    const where = reglaToWhere({
+      entidad: "EMPLEADO",
+      campo: "antiguedadMeses",
+      operador: "DESPUES_DE",
+      valor: "6",
+    }) as { empleado: { fechaIngreso: { lte: Date } } };
+    expect(where.empleado.fechaIngreso.lte).toBeInstanceOf(Date);
+    expect(where.empleado.fechaIngreso.lte.getTime()).toBeLessThan(Date.now());
   });
 
   it("rechaza campo no catalogado", () => {

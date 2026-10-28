@@ -242,6 +242,13 @@ export function reglaToWhere(
   let condition: Record<string, unknown>;
   if (def.tipo === "booleano") {
     condition = { [regla.campo]: { equals: regla.valor === "true" } };
+  } else if (def.tipo === "meses") {
+    const meses = Number(regla.valor);
+    const cutoff = new Date();
+    cutoff.setUTCMonth(cutoff.getUTCMonth() - meses);
+    const op =
+      regla.operador === "DESPUES_DE" ? { lte: cutoff } : { gt: cutoff };
+    condition = { fechaIngreso: op };
   } else if (def.tipo === "fecha") {
     const date = new Date(regla.valor);
     const op =
@@ -339,5 +346,53 @@ export async function listarElegibles(sorteoId: string, take = 50) {
     total,
     data,
     reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
+  };
+}
+
+export type ValoresSugeridosEvento = {
+  departamentos: string[];
+  clasificaciones: string[];
+  zonas: string[];
+  puestos: string[];
+  empresasCodigos: string[];
+};
+
+export async function getValoresSugeridosEvento(
+  eventoId: string,
+): Promise<ValoresSugeridosEvento> {
+  const [empleados, eventoEmpresas] = await Promise.all([
+    prisma.empleado.findMany({
+      where: {
+        activo: true,
+        empresa: { activo: true, eventos: { some: { eventoId } } },
+      },
+      select: {
+        departamento: true,
+        clasificacion: true,
+        zona: true,
+        puesto: true,
+      },
+    }),
+    prisma.eventoEmpresa.findMany({
+      where: { eventoId },
+      select: { empresa: { select: { codigo: true } } },
+    }),
+  ]);
+
+  const uniqSorted = (vals: (string | null | undefined)[]) =>
+    Array.from(
+      new Set(
+        vals
+          .map((v) => v?.trim())
+          .filter((v): v is string => Boolean(v && v.length > 0)),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "es"));
+
+  return {
+    departamentos: uniqSorted(empleados.map((e) => e.departamento)),
+    clasificaciones: uniqSorted(empleados.map((e) => e.clasificacion)),
+    zonas: uniqSorted(empleados.map((e) => e.zona)),
+    puestos: uniqSorted(empleados.map((e) => e.puesto)),
+    empresasCodigos: uniqSorted(eventoEmpresas.map((ee) => ee.empresa.codigo)),
   };
 }

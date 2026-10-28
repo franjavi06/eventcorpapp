@@ -8,7 +8,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sorteoIdParamsSchema } from "@/modules/sorteos/schemas/sorteo.schema";
-import { getSorteo } from "@/modules/sorteos/services/sorteo.service";
+import {
+  getSorteo,
+  getValoresSugeridosEvento,
+} from "@/modules/sorteos/services/sorteo.service";
 import { ElegiblesPreview } from "@/modules/sorteos/components/elegibles-preview";
 import { EjecucionesHistorial } from "@/modules/sorteos/components/ejecuciones-historial";
 import { ReglaBuilder } from "@/modules/sorteos/components/regla-builder";
@@ -25,6 +28,7 @@ async function SorteoDetailContent({
   const sorteo = await getSorteo(parsed.data.sorteoId).catch(() => null);
   if (!sorteo || sorteo.eventoId !== parsed.data.id) notFound();
 
+  const sugerencias = await getValoresSugeridosEvento(sorteo.eventoId);
   const bloqueado = sorteo.ejecuciones.length > 0;
 
   return (
@@ -68,6 +72,7 @@ async function SorteoDetailContent({
         eventoId={sorteo.eventoId}
         sorteoId={sorteo.id}
         reglas={sorteo.reglas}
+        sugerencias={sugerencias}
       />
 
       <ElegiblesPreview eventoId={sorteo.eventoId} sorteoId={sorteo.id} />

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import type { ReglaEntidad, ReglaOperador } from "@/generated/prisma/enums";
 import {
+  type CampoTipo,
   getCampoDef,
-  OPERADOR_LABELS,
+  getOperadorLabel,
   OPERADORES_POR_TIPO,
   REGLAS_CATALOGO,
 } from "@/modules/sorteos/lib/reglas-catalogo";
+import type { ValoresSugeridosEvento } from "@/modules/sorteos/services/sorteo.service";
 
 export type ReglaRow = {
   id: string;
@@ -36,13 +38,22 @@ export type ReglaRow = {
 const selectCls =
   "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
+const MESES_PRESETS = [
+  { label: "3 meses", value: "3" },
+  { label: "6 meses", value: "6" },
+  { label: "12 meses (1 año)", value: "12" },
+  { label: "24 meses (2 años)", value: "24" },
+];
+
 function ValorInput({
   tipo,
   valor,
+  opcionesSugeridas,
   onChange,
 }: {
-  tipo: "texto" | "booleano" | "fecha";
+  tipo: CampoTipo;
   valor: string;
+  opcionesSugeridas: string[];
   onChange: (v: string) => void;
 }) {
   if (tipo === "booleano") {
@@ -69,13 +80,70 @@ function ValorInput({
       />
     );
   }
+  if (tipo === "meses") {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            min={1}
+            max={600}
+            value={valor}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="6"
+            className="w-24"
+            aria-label="Valor"
+          />
+          <span className="text-xs text-muted-foreground">meses</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          {MESES_PRESETS.map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => onChange(p.value)}
+              className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
+                valor === p.value
+                  ? "border-indigo-500 bg-indigo-500/15 text-indigo-500"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Input
-      value={valor}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="Valor…"
-      aria-label="Valor"
-    />
+    <div className="flex flex-wrap items-center gap-1.5">
+      {opcionesSugeridas.length > 0 && (
+        <select
+          className={selectCls}
+          value={opcionesSugeridas.includes(valor) ? valor : ""}
+          onChange={(e) => {
+            if (e.target.value) onChange(e.target.value);
+          }}
+          aria-label="Valores existentes"
+        >
+          <option value="">Elegir de la lista…</option>
+          {opcionesSugeridas.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      )}
+      <Input
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={
+          opcionesSugeridas.length > 0 ? "O escriba valor…" : "Valor…"
+        }
+        aria-label="Valor"
+      />
+    </div>
   );
 }
 
@@ -83,10 +151,12 @@ export function ReglaBuilder({
   eventoId,
   sorteoId,
   reglas,
+  sugerencias,
 }: {
   eventoId: string;
   sorteoId: string;
   reglas: ReglaRow[];
+  sugerencias?: ValoresSugeridosEvento;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -100,6 +170,20 @@ export function ReglaBuilder({
   const campoDef = campo ? getCampoDef(entidad, campo) : null;
   const operadores = campoDef ? OPERADORES_POR_TIPO[campoDef.tipo] : [];
 
+  function getOpcionesParaCampo(): string[] {
+    if (!sugerencias) return [];
+    if (entidad === "EMPLEADO") {
+      if (campo === "departamento") return sugerencias.departamentos;
+      if (campo === "clasificacion") return sugerencias.clasificaciones;
+      if (campo === "zona") return sugerencias.zonas;
+      if (campo === "puesto") return sugerencias.puestos;
+    }
+    if (entidad === "EMPRESA" && campo === "codigo") {
+      return sugerencias.empresasCodigos;
+    }
+    return [];
+  }
+
   function resetEntidad(e: ReglaEntidad) {
     setEntidad(e);
     setCampo("");
@@ -109,12 +193,25 @@ export function ReglaBuilder({
 
   function resetCampo(c: string) {
     setCampo(c);
-    setOperador("");
-    setValor("");
+    const def = c ? getCampoDef(entidad, c) : null;
+    if (def?.tipo === "meses") {
+      setOperador("DESPUES_DE");
+      setValor("6");
+    } else if (def?.tipo === "texto") {
+      setOperador("IGUAL");
+      setValor("");
+    } else {
+      setOperador("");
+      setValor("");
+    }
   }
 
-  function agregar() {
-    if (!campo || !operador || !valor.trim()) return;
+  function guardarRegla(payload: {
+    entidad: ReglaEntidad;
+    campo: string;
+    operador: ReglaOperador;
+    valor: string;
+  }) {
     startTransition(async () => {
       const res = await fetch(
         `/api/eventos/${eventoId}/sorteos/${sorteoId}/reglas`,
@@ -122,10 +219,7 @@ export function ReglaBuilder({
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            entidad,
-            campo,
-            operador,
-            valor: valor.trim(),
+            ...payload,
             orden: reglas.length,
           }),
         },
@@ -140,6 +234,16 @@ export function ReglaBuilder({
       setOperador("");
       setValor("");
       router.refresh();
+    });
+  }
+
+  function agregar() {
+    if (!campo || !operador || !valor.trim()) return;
+    guardarRegla({
+      entidad,
+      campo,
+      operador,
+      valor: valor.trim(),
     });
   }
 
@@ -178,6 +282,8 @@ export function ReglaBuilder({
     });
   }
 
+  const departamentosRapidos = sugerencias?.departamentos.slice(0, 6) ?? [];
+
   return (
     <Card>
       <CardHeader>
@@ -187,6 +293,67 @@ export function ReglaBuilder({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-3 py-2 text-xs">
+          <span className="mr-1 flex items-center gap-1 font-semibold text-indigo-500">
+            <Sparkles className="size-3.5" />
+            Reglas rápidas (1 clic):
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            disabled={pending}
+            onClick={() =>
+              guardarRegla({
+                entidad: "EMPLEADO",
+                campo: "antiguedadMeses",
+                operador: "DESPUES_DE",
+                valor: "6",
+              })
+            }
+          >
+            + Antigüedad ≥ 6 meses
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            disabled={pending}
+            onClick={() =>
+              guardarRegla({
+                entidad: "EMPLEADO",
+                campo: "antiguedadMeses",
+                operador: "DESPUES_DE",
+                valor: "12",
+              })
+            }
+          >
+            + Antigüedad ≥ 12 meses
+          </Button>
+          {departamentosRapidos.map((depto) => (
+            <Button
+              key={depto}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={pending}
+              onClick={() =>
+                guardarRegla({
+                  entidad: "EMPLEADO",
+                  campo: "departamento",
+                  operador: "IGUAL",
+                  valor: depto,
+                })
+              }
+            >
+              + Depto: {depto}
+            </Button>
+          ))}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <select
             className={selectCls}
@@ -220,12 +387,17 @@ export function ReglaBuilder({
             <option value="">Operador…</option>
             {operadores.map((op) => (
               <option key={op} value={op}>
-                {OPERADOR_LABELS[op]}
+                {getOperadorLabel(campoDef?.tipo, op)}
               </option>
             ))}
           </select>
           {campoDef && (
-            <ValorInput tipo={campoDef.tipo} valor={valor} onChange={setValor} />
+            <ValorInput
+              tipo={campoDef.tipo}
+              valor={valor}
+              opcionesSugeridas={getOpcionesParaCampo()}
+              onChange={setValor}
+            />
           )}
           <Button
             type="button"
@@ -257,14 +429,16 @@ export function ReglaBuilder({
                     </Badge>
                     {def?.label ?? r.campo}{" "}
                     <span className="text-muted-foreground">
-                      {OPERADOR_LABELS[r.operador]}
+                      {getOperadorLabel(def?.tipo, r.operador)}
                     </span>{" "}
                     <span className="font-medium">
                       {def?.tipo === "booleano"
                         ? r.valor === "true"
                           ? "Verdadero"
                           : "Falso"
-                        : r.valor}
+                        : def?.tipo === "meses"
+                          ? `${r.valor} meses`
+                          : r.valor}
                     </span>
                     {!r.activo && (
                       <Badge variant="secondary" className="ml-2">

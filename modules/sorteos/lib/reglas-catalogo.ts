@@ -1,6 +1,6 @@
 import type { ReglaEntidad, ReglaOperador } from "@/generated/prisma/enums";
 
-export type CampoTipo = "texto" | "booleano" | "fecha";
+export type CampoTipo = "texto" | "booleano" | "fecha" | "meses";
 
 export type CampoDef = {
   tipo: CampoTipo;
@@ -20,11 +20,12 @@ export const REGLAS_CATALOGO: Record<ReglaEntidad, Record<string, CampoDef>> = {
     activo: { tipo: "booleano", label: "Activa" },
   },
   EMPLEADO: {
-    codigo: { tipo: "texto", label: "Código" },
+    antiguedadMeses: { tipo: "meses", label: "Antigüedad (meses)" },
     departamento: { tipo: "texto", label: "Departamento" },
-    puesto: { tipo: "texto", label: "Puesto" },
-    zona: { tipo: "texto", label: "Zona" },
     clasificacion: { tipo: "texto", label: "Clasificación" },
+    zona: { tipo: "texto", label: "Zona" },
+    puesto: { tipo: "texto", label: "Puesto" },
+    codigo: { tipo: "texto", label: "Código" },
     activo: { tipo: "booleano", label: "Activo" },
     fechaIngreso: { tipo: "fecha", label: "Fecha de ingreso" },
   },
@@ -34,6 +35,7 @@ export const OPERADORES_POR_TIPO: Record<CampoTipo, readonly ReglaOperador[]> = 
   texto: ["IGUAL", "DISTINTO", "CONTIENE"],
   booleano: ["IGUAL"],
   fecha: ["IGUAL", "ANTES_DE", "DESPUES_DE"],
+  meses: ["DESPUES_DE", "ANTES_DE"],
 } as const;
 
 export const OPERADOR_LABELS: Record<ReglaOperador, string> = {
@@ -44,6 +46,16 @@ export const OPERADOR_LABELS: Record<ReglaOperador, string> = {
   DESPUES_DE: "después de",
 };
 
+export function getOperadorLabel(
+  tipo: CampoTipo | undefined,
+  op: ReglaOperador,
+): string {
+  if (tipo === "meses") {
+    return op === "DESPUES_DE" ? "mayor o igual a" : "menor a";
+  }
+  return OPERADOR_LABELS[op];
+}
+
 export function getCampoDef(
   entidad: ReglaEntidad,
   campo: string,
@@ -52,7 +64,10 @@ export function getCampoDef(
 }
 
 /** Valida que el valor serializado sea correcto para el tipo del campo. */
-export function validateReglaValor(campo: CampoDef, valor: string): string | null {
+export function validateReglaValor(
+  campo: CampoDef,
+  valor: string,
+): string | null {
   const v = valor.trim();
   if (!v) return "El valor es obligatorio";
   switch (campo.tipo) {
@@ -62,6 +77,12 @@ export function validateReglaValor(campo: CampoDef, valor: string): string | nul
         : "El valor debe ser verdadero o falso";
     case "fecha":
       return Number.isNaN(Date.parse(v)) ? "Fecha inválida" : null;
+    case "meses": {
+      const n = Number(v);
+      return Number.isInteger(n) && n >= 1 && n <= 600
+        ? null
+        : "Ingrese una cantidad entera de meses (1 a 600)";
+    }
     default:
       return v.length <= 300 ? null : "El valor es demasiado largo";
   }
