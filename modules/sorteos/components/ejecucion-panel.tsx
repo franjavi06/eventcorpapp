@@ -363,21 +363,21 @@ export function EjecucionPanel({
       </div>
 
       {empresasParticipantes.length > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 rounded-2xl border bg-background/50 px-4 py-3">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-4 rounded-2xl border bg-background/50 px-5 py-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Empresas participantes:
           </span>
           {empresasParticipantes.map((emp) => (
             <div
               key={emp.id}
-              className="flex items-center gap-2 rounded-xl border bg-card px-3 py-1.5 shadow-xs"
+              className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-2 shadow-xs"
             >
               <EmpresaLogo
                 empresaCodigo={emp.codigo}
                 nombre={emp.nombre}
-                size="sm"
+                size="lg"
               />
-              <span className="text-xs font-semibold text-foreground">
+              <span className="text-sm font-bold text-foreground">
                 {emp.nombre}
               </span>
             </div>
@@ -430,13 +430,15 @@ export function EjecucionPanel({
                   {cargoUltimo}
                 </p>
               )}
-              <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <p className="flex items-center justify-center gap-2.5 text-base text-muted-foreground">
                 <EmpresaLogo
                   empresaCodigo={ultimoRevelado.empresaCodigo}
                   nombre={ultimoRevelado.empresa}
-                  size="xs"
+                  size="sm"
                 />
-                <span>{ultimoRevelado.empresa}</span>
+                <span className="font-semibold text-foreground">
+                  {ultimoRevelado.empresa}
+                </span>
                 <span>·</span>
                 <span className="font-mono">{ultimoRevelado.codigo}</span>
               </p>
@@ -513,13 +515,15 @@ export function EjecucionPanel({
                           {cargo}
                         </p>
                       )}
-                      <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                      <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
                         <EmpresaLogo
                           empresaCodigo={g.empresaCodigo}
                           nombre={g.empresa}
-                          size="xs"
+                          size="sm"
                         />
-                        <span className="truncate">{g.empresa}</span>
+                        <span className="truncate font-medium text-foreground">
+                          {g.empresa}
+                        </span>
                         <span>·</span>
                         <span className="font-mono">{g.codigo}</span>
                       </p>
@@ -568,7 +572,7 @@ export function EjecucionPanel({
                 </Button>
               }
             />
-            <AlertDialogContent>
+            <AlertDialogContent container={panelRef}>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Ejecutar el sorteo?</AlertDialogTitle>
                 <AlertDialogDescription>

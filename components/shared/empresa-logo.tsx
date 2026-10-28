@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 type EmpresaLogoProps = {
   empresaCodigo?: string | null;
   nombre: string;
-  size?: "xs" | "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
 };
 
@@ -16,10 +16,11 @@ const SIZE_CLASSES: Record<
   NonNullable<EmpresaLogoProps["size"]>,
   { box: string; icon: string }
 > = {
-  xs: { box: "size-5 rounded-md p-0.5", icon: "size-3.5" },
-  sm: { box: "size-8 rounded-lg p-1", icon: "size-4" },
-  md: { box: "size-12 rounded-2xl p-1.5", icon: "size-6" },
+  xs: { box: "size-6 rounded-md p-0.5", icon: "size-4" },
+  sm: { box: "size-9 rounded-lg p-1", icon: "size-5" },
+  md: { box: "size-14 rounded-2xl p-1.5", icon: "size-6" },
   lg: { box: "size-16 rounded-2xl p-2", icon: "size-7" },
+  xl: { box: "size-20 rounded-2xl p-2", icon: "size-8" },
 };
 
 export function EmpresaLogo({
