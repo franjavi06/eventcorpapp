@@ -27,10 +27,34 @@ type Elegible = {
     codigo: string;
     nombres: string;
     apellidos: string;
+    departamento: string | null;
+    clasificacion: string | null;
+    zona: string | null;
+    fechaIngreso: string | Date | null;
     empresa: { codigo: string; nombre: string };
   };
   asistencia: { registradoAt: string } | null;
 };
+
+function formatAntiguedad(fechaIngreso: string | Date | null): string {
+  if (!fechaIngreso) return "—";
+  const start = new Date(fechaIngreso);
+  if (Number.isNaN(start.getTime())) return "—";
+  const now = new Date();
+  let meses =
+    (now.getFullYear() - start.getFullYear()) * 12 +
+    (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) meses -= 1;
+  if (meses < 0) meses = 0;
+  const anos = Math.floor(meses / 12);
+  const resto = meses % 12;
+  if (anos > 0) {
+    return resto > 0
+      ? `${anos} año${anos === 1 ? "" : "s"}, ${resto} m`
+      : `${anos} año${anos === 1 ? "" : "s"}`;
+  }
+  return `${meses} mes${meses === 1 ? "" : "es"}`;
+}
 
 export function ElegiblesPreview({
   eventoId,
@@ -98,6 +122,10 @@ export function ElegiblesPreview({
                 <TableHead>Código</TableHead>
                 <TableHead>Empleado</TableHead>
                 <TableHead>Empresa</TableHead>
+                <TableHead>Departamento</TableHead>
+                <TableHead>Antigüedad</TableHead>
+                <TableHead>Zona</TableHead>
+                <TableHead>Clasificación</TableHead>
                 <TableHead>Asistencia</TableHead>
               </TableRow>
             </TableHeader>
@@ -112,6 +140,24 @@ export function ElegiblesPreview({
                   </TableCell>
                   <TableCell className="text-sm">
                     {p.empleado.empresa.nombre}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {p.empleado.departamento ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {formatAntiguedad(p.empleado.fechaIngreso)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {p.empleado.zona ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {p.empleado.clasificacion ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {p.asistencia ? (
