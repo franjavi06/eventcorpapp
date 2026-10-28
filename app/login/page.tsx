@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +11,7 @@ import {
 export const metadata = { title: "Iniciar sesión" };
 
 async function LoginContent() {
+  await connection();
   await ensureInitialAuthSeed();
   const creds = getInitialAdminCredentials();
   const showHint = process.env.NODE_ENV !== "production";

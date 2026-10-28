@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +11,7 @@ import {
 export const metadata = { title: "Usuarios y Roles" };
 
 async function UsuariosContent() {
+  await connection();
   const usuarios = await listUsuarios();
   return (
     <UsuariosManager usuarios={usuarios} rolesCatalogo={CATALOGO_ROLES} />
