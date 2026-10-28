@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 import type { Prisma, SorteoRegla } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { isRecordNotFound } from "@/lib/prisma-errors";
@@ -350,6 +352,59 @@ export async function listarElegibles(sorteoId: string, take = 50) {
     total,
     data,
     reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
+  };
+}
+
+export async function simularSorteo(sorteoId: string) {
+  const sorteo = await assertSorteo(sorteoId);
+  const excluidos = await listGanadorEmpleadoIds(sorteo.eventoId);
+  const where = elegiblesWhere(sorteo, excluidos);
+
+  const candidatos = await prisma.eventoParticipante.findMany({
+    where,
+    include: {
+      empleado: {
+        select: {
+          id: true,
+          codigo: true,
+          nombres: true,
+          apellidos: true,
+          puesto: true,
+          departamento: true,
+          clasificacion: true,
+          zona: true,
+          fechaIngreso: true,
+          empresa: { select: { codigo: true, nombre: true } },
+        },
+      },
+      asistencia: { select: { registradoAt: true } },
+    },
+  });
+
+  if (candidatos.length < sorteo.cantidadGanadores) {
+    throw new ValidationError(
+      `Candidatos elegibles insuficientes para simular: hay ${candidatos.length} y el sorteo requiere ${sorteo.cantidadGanadores}`,
+    );
+  }
+
+  const copia = [...candidatos];
+  const seleccionados: typeof candidatos = [];
+  for (let i = 0; i < sorteo.cantidadGanadores; i++) {
+    const j = randomInt(i, copia.length);
+    [copia[i], copia[j]] = [copia[j]!, copia[i]!];
+    seleccionados.push(copia[i]!);
+  }
+
+  return {
+    totalElegibles: candidatos.length,
+    cantidadGanadores: sorteo.cantidadGanadores,
+    reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
+    ganadoresSimulados: seleccionados.map((c, idx) => ({
+      orden: idx + 1,
+      id: c.id,
+      empleado: c.empleado,
+      asistencia: c.asistencia,
+    })),
   };
 }
 
