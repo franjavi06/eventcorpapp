@@ -11,6 +11,8 @@ const participanteInclude = {
       nombres: true,
       apellidos: true,
       correo: true,
+      departamento: true,
+      zona: true,
       activo: true,
       empresa: { select: { id: true, codigo: true, nombre: true } },
     },

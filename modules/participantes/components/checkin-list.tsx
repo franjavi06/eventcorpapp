@@ -51,6 +51,8 @@ export async function CheckInList({
             <TableHead>Código</TableHead>
             <TableHead>Empleado</TableHead>
             <TableHead>Empresa</TableHead>
+            <TableHead>Departamento</TableHead>
+            <TableHead>Zona</TableHead>
             {vista === "no" && (
               <TableHead className="text-right">Acciones</TableHead>
             )}
@@ -74,6 +76,12 @@ export async function CheckInList({
               </TableCell>
               <TableCell className="text-sm">
                 {p.empleado.empresa.nombre}
+              </TableCell>
+              <TableCell className="text-sm">
+                {p.empleado.departamento ?? "—"}
+              </TableCell>
+              <TableCell className="text-sm">
+                {p.empleado.zona ?? "—"}
               </TableCell>
               {vista === "no" && (
                 <TableCell className="text-right">
