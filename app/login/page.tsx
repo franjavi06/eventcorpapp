@@ -3,25 +3,14 @@ import { Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoginForm } from "@/modules/auth/components/login-form";
-import {
-  ensureInitialAuthSeed,
-  getInitialAdminCredentials,
-} from "@/modules/auth/services/auth.service";
+import { ensureInitialAuthSeed } from "@/modules/auth/services/auth.service";
 
 export const metadata = { title: "Iniciar sesión" };
 
 async function LoginContent() {
   await connection();
   await ensureInitialAuthSeed();
-  const creds = getInitialAdminCredentials();
-  const showHint = process.env.NODE_ENV !== "production";
-
-  return (
-    <LoginForm
-      initialAdminUsername={showHint ? creds.username : undefined}
-      initialAdminPassword={showHint ? creds.password : undefined}
-    />
-  );
+  return <LoginForm />;
 }
 
 export default function LoginPage() {

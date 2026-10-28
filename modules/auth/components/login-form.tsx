@@ -8,15 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type LoginFormProps = {
-  initialAdminUsername?: string;
-  initialAdminPassword?: string;
-};
-
-export function LoginForm({
-  initialAdminUsername,
-  initialAdminPassword,
-}: LoginFormProps) {
+export function LoginForm() {
   const router = useRouter();
   const [identificador, setIdentificador] = useState("");
   const [password, setPassword] = useState("");
@@ -70,7 +62,7 @@ export function LoginForm({
             id="identificador"
             value={identificador}
             onChange={(e) => setIdentificador(e.target.value)}
-            placeholder="admin o admin@eventcorp.local"
+            placeholder="Ingrese su usuario o correo"
             autoFocus
             autoComplete="username"
             required
@@ -102,24 +94,6 @@ export function LoginForm({
           {pending ? "Verificando…" : "Iniciar sesión"}
         </Button>
       </form>
-
-      {initialAdminUsername && initialAdminPassword && (
-        <div className="mt-6 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-3.5 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">
-            Credenciales iniciales de administrador:
-          </p>
-          <p className="mt-1">
-            Usuario:{" "}
-            <code className="font-mono font-bold text-indigo-500">
-              {initialAdminUsername}
-            </code>{" "}
-            · Contraseña:{" "}
-            <code className="font-mono font-bold text-indigo-500">
-              {initialAdminPassword}
-            </code>
-          </p>
-        </div>
-      )}
     </div>
   );
 }
