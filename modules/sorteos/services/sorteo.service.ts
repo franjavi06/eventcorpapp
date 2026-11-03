@@ -83,6 +83,48 @@ export async function getSorteo(id: string) {
   return assertSorteo(id);
 }
 
+export type SorteoVecino = {
+  id: string;
+  nombre: string;
+  orden: number;
+  estado: string;
+};
+
+export type SorteosNavegacion = {
+  posicion: number;
+  total: number;
+  anterior: SorteoVecino | null;
+  siguiente: SorteoVecino | null;
+};
+
+export async function getSorteosVecinos(
+  eventoId: string,
+  sorteoId: string,
+): Promise<SorteosNavegacion> {
+  const todos = await prisma.sorteo.findMany({
+    where: { eventoId, estado: { not: "CANCELADO" } },
+    orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
+    select: { id: true, nombre: true, orden: true, estado: true },
+  });
+
+  const idx = todos.findIndex((s) => s.id === sorteoId);
+  if (idx === -1) {
+    return {
+      posicion: 1,
+      total: Math.max(todos.length, 1),
+      anterior: null,
+      siguiente: todos[0] ?? null,
+    };
+  }
+
+  return {
+    posicion: idx + 1,
+    total: todos.length,
+    anterior: idx > 0 ? todos[idx - 1]! : null,
+    siguiente: idx < todos.length - 1 ? todos[idx + 1]! : null,
+  };
+}
+
 export async function createSorteo(eventoId: string, input: unknown) {
   const data = sorteoCreateSchema.parse(input);
   await assertEvento(eventoId);

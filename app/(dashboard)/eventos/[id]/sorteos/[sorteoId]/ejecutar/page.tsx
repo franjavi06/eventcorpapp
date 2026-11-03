@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { ArrowLeft, ClipboardCheck, Sparkles, Timer, Trophy } from "lucide-react";
 
@@ -8,7 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { sorteoIdParamsSchema } from "@/modules/sorteos/schemas/sorteo.schema";
 import { EjecucionPanel } from "@/modules/sorteos/components/ejecucion-panel";
 import { listEjecuciones } from "@/modules/sorteos/services/ejecucion.service";
-import { getSorteo } from "@/modules/sorteos/services/sorteo.service";
+import {
+  getSorteo,
+  getSorteosVecinos,
+} from "@/modules/sorteos/services/sorteo.service";
 
 export const metadata = { title: "Ejecutar sorteo" };
 
@@ -17,13 +21,17 @@ async function EjecutarSorteoContent({
 }: {
   params: PageProps<"/eventos/[id]/sorteos/[sorteoId]/ejecutar">["params"];
 }) {
+  await connection();
   const parsed = sorteoIdParamsSchema.safeParse(await params);
   if (!parsed.success) notFound();
 
   const sorteo = await getSorteo(parsed.data.sorteoId).catch(() => null);
   if (!sorteo || sorteo.eventoId !== parsed.data.id) notFound();
 
-  const ejecuciones = await listEjecuciones(sorteo.id);
+  const [ejecuciones, navegacion] = await Promise.all([
+    listEjecuciones(sorteo.id),
+    getSorteosVecinos(sorteo.eventoId, sorteo.id),
+  ]);
   const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
   const ganadoresIniciales =
     completada?.ganadores.map((g) => ({
@@ -93,6 +101,7 @@ async function EjecutarSorteoContent({
         duracionAnimacionSegundos={sorteo.duracionAnimacionSegundos}
         ganadoresIniciales={ganadoresIniciales}
         empresasParticipantes={empresasParticipantes}
+        navegacion={navegacion}
       />
     </div>
   );

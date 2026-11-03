@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   Briefcase,
   Maximize2,
   Minimize2,
@@ -28,6 +30,7 @@ import {
 import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
 import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Button } from "@/components/ui/button";
+import type { SorteosNavegacion } from "@/modules/sorteos/services/sorteo.service";
 
 export type GanadorInfo = {
   codigo: string;
@@ -55,6 +58,7 @@ type EjecucionPanelProps = {
   duracionAnimacionSegundos?: number;
   ganadoresIniciales?: GanadorInfo[];
   empresasParticipantes?: EmpresaParticipanteInfo[];
+  navegacion?: SorteosNavegacion;
 };
 
 type ElegibleItem = {
@@ -102,6 +106,7 @@ export function EjecucionPanel({
   duracionAnimacionSegundos = 3,
   ganadoresIniciales = [],
   empresasParticipantes = [],
+  navegacion,
 }: EjecucionPanelProps) {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -319,7 +324,41 @@ export function EjecucionPanel({
             <p className="mt-1 text-sm text-muted-foreground">{descripcion}</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {navegacion?.anterior && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSpinning}
+              onClick={() =>
+                router.push(
+                  `/eventos/${eventoId}/sorteos/${navegacion.anterior!.id}/ejecutar`,
+                )
+              }
+              title={`Anterior: ${navegacion.anterior.nombre}`}
+            >
+              <ArrowLeft className="size-4" />
+              Anterior
+            </Button>
+          )}
+          {navegacion?.siguiente && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSpinning}
+              onClick={() =>
+                router.push(
+                  `/eventos/${eventoId}/sorteos/${navegacion.siguiente!.id}/ejecutar`,
+                )
+              }
+              title={`Próximo: ${navegacion.siguiente.nombre}`}
+            >
+              Próximo sorteo
+              <ArrowRight className="size-4" />
+            </Button>
+          )}
           {enSecuencia && (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center">
               <span className="block text-xs font-medium text-amber-500">
@@ -535,7 +574,7 @@ export function EjecucionPanel({
         </div>
       )}
 
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-3">
         {faltanPorRevelar && modoRevelacion === "MANUAL" ? (
           <Button
             type="button"
@@ -600,6 +639,24 @@ export function EjecucionPanel({
             </AlertDialogContent>
           </AlertDialog>
         )}
+
+        {!faltanPorRevelar &&
+          !isSpinning &&
+          ganadoresMostrados.length > 0 &&
+          navegacion?.siguiente && (
+            <Button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/eventos/${eventoId}/sorteos/${navegacion.siguiente!.id}/ejecutar`,
+                )
+              }
+              className="h-auto rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-4 text-base font-bold text-white shadow-xl shadow-emerald-600/30 hover:from-emerald-500 hover:to-teal-500"
+            >
+              <span>Próximo sorteo: {navegacion.siguiente.nombre}</span>
+              <ArrowRight className="size-5" />
+            </Button>
+          )}
       </div>
     </div>
   );
