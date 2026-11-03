@@ -16,7 +16,9 @@ import {
 import {
   addRegla,
   createSorteo,
+  createSorteosBulk,
   deleteSorteo,
+  getSorteo,
   listarElegibles,
   removeRegla,
   updateRegla,
@@ -306,6 +308,30 @@ describe("sorteos service", () => {
       });
       const { total } = await listarElegibles(s.id);
       expect(total).toBe(0);
+    });
+
+    it("createSorteosBulk crea múltiples sorteos con orden correlativo y regla opcional de antigüedad", async () => {
+      const { evento } = await setup();
+      const res = await createSorteosBulk(evento.id, {
+        items: [
+          { nombre: "Premio $2,500", cantidadGanadores: 20 },
+          { nombre: "Premio $3,000", cantidadGanadores: 16 },
+          { nombre: "Gran Premio $20,000", cantidadGanadores: 3 },
+        ],
+        estado: "ACTIVO",
+        asistenciaObligatoria: true,
+        antiguedadMinimaMeses: 6,
+      });
+
+      expect(res.creados).toBe(3);
+      expect(res.data.map((s) => s.orden)).toEqual([1, 2, 3]);
+
+      const primero = await getSorteo(res.data[0].id);
+      expect(primero.cantidadGanadores).toBe(20);
+      expect(primero.estado).toBe("ACTIVO");
+      expect(primero.reglas).toHaveLength(1);
+      expect(primero.reglas[0].campo).toBe("antiguedadMeses");
+      expect(primero.reglas[0].valor).toBe("6");
     });
   });
 });

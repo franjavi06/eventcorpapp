@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { firstValues } from "@/lib/params";
 import { idParamSchema } from "@/lib/validations/common";
 import { getEvento } from "@/modules/eventos/services/evento.service";
+import { CargaMasivaSorteosModal } from "@/modules/sorteos/components/carga-masiva-sorteos-modal";
 import { SorteosTable } from "@/modules/sorteos/components/sorteos-table";
 import {
   SORTEO_ESTADOS,
@@ -57,13 +58,16 @@ async function SorteosContent({ params, searchParams }: Props) {
             </p>
           </div>
         </div>
-        <Link
-          href={`/eventos/${eventoId}/sorteos/nuevo`}
-          className={buttonVariants()}
-        >
-          <Plus className="size-4" />
-          Nuevo sorteo
-        </Link>
+        <div className="flex items-center gap-2">
+          <CargaMasivaSorteosModal eventoId={eventoId} />
+          <Link
+            href={`/eventos/${eventoId}/sorteos/nuevo`}
+            className={buttonVariants()}
+          >
+            <Plus className="size-4" />
+            Nuevo sorteo
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

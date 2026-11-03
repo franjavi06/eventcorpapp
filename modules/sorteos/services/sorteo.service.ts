@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import ExcelJS from "exceljs";
 
 import type { Prisma, SorteoCuota, SorteoRegla } from "@/generated/prisma/client";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -12,6 +13,7 @@ import {
   cuotaUpdateSchema,
   reglaSchema,
   reglaUpdateSchema,
+  sorteoCargaMasivaSchema,
   sorteoCreateSchema,
   sorteoUpdateSchema,
   type SorteoListQuery,
@@ -736,4 +738,182 @@ export async function getValoresSugeridosEvento(
     puestos: uniqSorted(empleados.map((e) => e.puesto)),
     empresasCodigos: uniqSorted(eventoEmpresas.map((ee) => ee.empresa.codigo)),
   };
+}
+
+export async function createSorteosBulk(eventoId: string, rawInput: unknown) {
+  await assertEvento(eventoId);
+  const input = sorteoCargaMasivaSchema.parse(rawInput);
+
+  const ultimo = await prisma.sorteo.findFirst({
+    where: { eventoId },
+    orderBy: { orden: "desc" },
+    select: { orden: true },
+  });
+  let siguienteOrden = (ultimo?.orden ?? 0) + 1;
+
+  const creados = await prisma.$transaction(async (tx) => {
+    const lista = [];
+    for (const item of input.items) {
+      const sorteo = await tx.sorteo.create({
+        data: {
+          eventoId,
+          nombre: item.nombre,
+          descripcion: item.descripcion ?? null,
+          cantidadGanadores: item.cantidadGanadores,
+          orden: siguienteOrden++,
+          estado: input.estado,
+          asistenciaObligatoria: input.asistenciaObligatoria,
+          ...(input.antiguedadMinimaMeses
+            ? {
+                reglas: {
+                  create: {
+                    entidad: "EMPLEADO",
+                    campo: "antiguedadMeses",
+                    operador: "DESPUES_DE",
+                    valor: String(input.antiguedadMinimaMeses),
+                    orden: 0,
+                    activo: true,
+                  },
+                },
+              }
+            : {}),
+        },
+      });
+      lista.push(sorteo);
+    }
+
+    await registrarAuditoria(
+      {
+        eventoId,
+        entidad: "Sorteo",
+        accion: "CARGA_MASIVA_SORTEOS",
+        despues: {
+          creados: lista.length,
+          estado: input.estado,
+          antiguedadMinimaMeses: input.antiguedadMinimaMeses,
+          nombres: lista.map((s) => s.nombre),
+        },
+      },
+      tx,
+    );
+
+    return lista;
+  });
+
+  return {
+    creados: creados.length,
+    data: creados,
+  };
+}
+
+function cellToText(val: ExcelJS.CellValue): string {
+  if (val == null) return "";
+  if (typeof val === "object" && "text" in val && typeof val.text === "string") {
+    return val.text.trim();
+  }
+  if (
+    typeof val === "object" &&
+    "result" in val &&
+    val.result !== undefined &&
+    val.result !== null
+  ) {
+    return String(val.result).trim();
+  }
+  return String(val).trim();
+}
+
+export async function parseSorteosExcel(
+  buffer: ArrayBuffer,
+): Promise<{ nombre: string; cantidadGanadores: number; descripcion?: string | null }[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  const sheet = wb.worksheets[0];
+  if (!sheet) {
+    throw new ValidationError("El archivo Excel no contiene hojas");
+  }
+
+  const headerRow = sheet.getRow(1);
+  const colMap = new Map<string, number>();
+  headerRow.eachCell((cell, colNumber) => {
+    const key = cellToText(cell.value)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+    if (key) colMap.set(key, colNumber);
+  });
+
+  const colNombre =
+    colMap.get("nombre") ??
+    colMap.get("sorteo") ??
+    colMap.get("premio") ??
+    colMap.get("premios") ??
+    1;
+  const colCantidad =
+    colMap.get("cantidad_ganadores") ??
+    colMap.get("cantidad") ??
+    colMap.get("ganadores") ??
+    2;
+  const colDescripcion = colMap.get("descripcion") ?? 3;
+
+  const items: {
+    nombre: string;
+    cantidadGanadores: number;
+    descripcion?: string | null;
+  }[] = [];
+
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const nombre = cellToText(row.getCell(colNombre).value);
+    const cantRaw = cellToText(row.getCell(colCantidad).value);
+    const descripcion = cellToText(row.getCell(colDescripcion).value);
+    if (!nombre && !cantRaw) return;
+    const cantidadGanadores = Number(cantRaw.replace(/,/g, ""));
+    if (!nombre || !Number.isInteger(cantidadGanadores) || cantidadGanadores < 1) {
+      throw new ValidationError(
+        `Fila ${rowNumber}: ingrese un nombre válido y una cantidad entera mayor que 0`,
+      );
+    }
+    items.push({
+      nombre,
+      cantidadGanadores,
+      descripcion: descripcion || null,
+    });
+  });
+
+  if (items.length === 0) {
+    throw new ValidationError(
+      "El archivo no contiene filas de sorteos válidas",
+    );
+  }
+  return items;
+}
+
+export async function buildSorteosPlantillaExcel(): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Sorteos");
+  ws.columns = [
+    { header: "nombre", key: "nombre", width: 34 },
+    { header: "cantidad_ganadores", key: "cantidad_ganadores", width: 22 },
+    { header: "descripcion", key: "descripcion", width: 38 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  ws.addRow({
+    nombre: "Premio $2,500",
+    cantidad_ganadores: 20,
+    descripcion: "4 Administración, 10 Operaciones, 6 Comercial",
+  });
+  ws.addRow({
+    nombre: "Premio $3,000",
+    cantidad_ganadores: 16,
+    descripcion: "10 Operaciones, 6 Comercial",
+  });
+  ws.addRow({
+    nombre: "Gran Premio $20,000",
+    cantidad_ganadores: 3,
+    descripcion: "Premio general",
+  });
+  const arrayBuffer = await wb.xlsx.writeBuffer();
+  return Buffer.from(arrayBuffer);
 }

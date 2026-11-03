@@ -145,8 +145,34 @@ export const cuotaIdParamsSchema = sorteoIdParamsSchema.extend({
   cuotaId: uuidSchema,
 });
 
+export const sorteoCargaMasivaItemSchema = z.object({
+  nombre: z.string().trim().min(1, "El nombre es obligatorio").max(150),
+  cantidadGanadores: z.coerce
+    .number()
+    .int("La cantidad de ganadores debe ser un entero")
+    .positive("La cantidad de ganadores debe ser mayor que cero"),
+  descripcion: optionalText(500),
+});
+
+export const sorteoCargaMasivaSchema = z.object({
+  items: z
+    .array(sorteoCargaMasivaItemSchema)
+    .min(1, "Debe incluir al menos un sorteo")
+    .max(200, "Máximo 200 sorteos por carga"),
+  estado: z.enum(["BORRADOR", "ACTIVO"]).default("BORRADOR"),
+  asistenciaObligatoria: z.boolean().default(true),
+  antiguedadMinimaMeses: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(600)
+    .nullish()
+    .transform((v) => v ?? null),
+});
+
 export type SorteoCreateInput = z.output<typeof sorteoCreateSchema>;
 export type SorteoUpdateInput = z.output<typeof sorteoUpdateSchema>;
 export type SorteoListQuery = z.output<typeof sorteoListQuerySchema>;
 export type ReglaInput = z.output<typeof reglaSchema>;
 export type CuotaInput = z.output<typeof cuotaSchema>;
+export type SorteoCargaMasivaInput = z.output<typeof sorteoCargaMasivaSchema>;

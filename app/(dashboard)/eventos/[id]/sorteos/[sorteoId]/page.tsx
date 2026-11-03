@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { Play } from "lucide-react";
 
@@ -23,6 +24,7 @@ async function SorteoDetailContent({
 }: {
   params: PageProps<"/eventos/[id]/sorteos/[sorteoId]">["params"];
 }) {
+  await connection();
   const parsed = sorteoIdParamsSchema.safeParse(await params);
   if (!parsed.success) notFound();
 
