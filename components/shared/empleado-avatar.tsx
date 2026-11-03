@@ -8,11 +8,12 @@ type EmpleadoAvatarProps = {
   empresaCodigo?: string | null;
   empleadoCodigo: string;
   nombre: string;
-  size?: "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl";
   className?: string;
 };
 
 const SIZE_CLASSES: Record<NonNullable<EmpleadoAvatarProps["size"]>, string> = {
+  sm: "size-9 rounded-lg text-xs",
   md: "size-12 rounded-xl text-sm",
   lg: "size-16 rounded-2xl text-lg",
   xl: "size-28 rounded-3xl text-2xl md:size-32",

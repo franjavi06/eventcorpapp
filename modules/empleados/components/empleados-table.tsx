@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ActivoToggle } from "@/components/shared/activo-toggle";
+import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Pagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,17 @@ export async function EmpleadosTable({ query }: { query: EmpleadoListQuery }) {
           <TableRow key={empleado.id}>
             <TableCell className="font-mono text-sm">{empleado.codigo}</TableCell>
             <TableCell className="font-medium">
-              {empleado.apellidos}, {empleado.nombres}
+              <div className="flex items-center gap-2.5">
+                <EmpleadoAvatar
+                  empresaCodigo={empleado.empresa.codigo}
+                  empleadoCodigo={empleado.codigo}
+                  nombre={`${empleado.nombres} ${empleado.apellidos}`}
+                  size="sm"
+                />
+                <span>
+                  {empleado.apellidos}, {empleado.nombres}
+                </span>
+              </div>
             </TableCell>
             <TableCell>
               {empleado.empresa.codigo} — {empleado.empresa.nombre}
