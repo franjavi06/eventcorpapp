@@ -310,7 +310,7 @@ describe("sorteos service", () => {
       expect(total).toBe(0);
     });
 
-    it("createSorteosBulk crea múltiples sorteos con orden correlativo y regla opcional de antigüedad", async () => {
+    it("createSorteosBulk crea múltiples sorteos con orden correlativo", async () => {
       const { evento } = await setup();
       const res = await createSorteosBulk(evento.id, {
         items: [
@@ -320,7 +320,6 @@ describe("sorteos service", () => {
         ],
         estado: "ACTIVO",
         asistenciaObligatoria: true,
-        antiguedadMinimaMeses: 6,
       });
 
       expect(res.creados).toBe(3);
@@ -329,9 +328,6 @@ describe("sorteos service", () => {
       const primero = await getSorteo(res.data[0].id);
       expect(primero.cantidadGanadores).toBe(20);
       expect(primero.estado).toBe("ACTIVO");
-      expect(primero.reglas).toHaveLength(1);
-      expect(primero.reglas[0].campo).toBe("antiguedadMeses");
-      expect(primero.reglas[0].valor).toBe("6");
     });
   });
 });

@@ -763,20 +763,6 @@ export async function createSorteosBulk(eventoId: string, rawInput: unknown) {
           orden: siguienteOrden++,
           estado: input.estado,
           asistenciaObligatoria: input.asistenciaObligatoria,
-          ...(input.antiguedadMinimaMeses
-            ? {
-                reglas: {
-                  create: {
-                    entidad: "EMPLEADO",
-                    campo: "antiguedadMeses",
-                    operador: "DESPUES_DE",
-                    valor: String(input.antiguedadMinimaMeses),
-                    orden: 0,
-                    activo: true,
-                  },
-                },
-              }
-            : {}),
         },
       });
       lista.push(sorteo);
@@ -790,7 +776,6 @@ export async function createSorteosBulk(eventoId: string, rawInput: unknown) {
         despues: {
           creados: lista.length,
           estado: input.estado,
-          antiguedadMinimaMeses: input.antiguedadMinimaMeses,
           nombres: lista.map((s) => s.nombre),
         },
       },

@@ -161,13 +161,6 @@ export const sorteoCargaMasivaSchema = z.object({
     .max(200, "Máximo 200 sorteos por carga"),
   estado: z.enum(["BORRADOR", "ACTIVO"]).default("BORRADOR"),
   asistenciaObligatoria: z.boolean().default(true),
-  antiguedadMinimaMeses: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(600)
-    .nullish()
-    .transform((v) => v ?? null),
 });
 
 export type SorteoCreateInput = z.output<typeof sorteoCreateSchema>;

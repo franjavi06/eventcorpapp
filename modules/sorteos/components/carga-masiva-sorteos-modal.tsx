@@ -45,8 +45,6 @@ export function CargaMasivaSorteosModal({ eventoId }: { eventoId: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [estado, setEstado] = useState<"BORRADOR" | "ACTIVO">("BORRADOR");
   const [asistenciaObligatoria, setAsistenciaObligatoria] = useState(true);
-  const [aplicarAntiguedad, setAplicarAntiguedad] = useState(false);
-  const [antiguedadMeses, setAntiguedadMeses] = useState("6");
   const [pending, startTransition] = useTransition();
 
   function updateRow(id: string, patch: Partial<RowDraft>) {
@@ -94,9 +92,6 @@ export function CargaMasivaSorteosModal({ eventoId }: { eventoId: string }) {
           items: validas,
           estado,
           asistenciaObligatoria,
-          antiguedadMinimaMeses: aplicarAntiguedad
-            ? Number(antiguedadMeses) || 6
-            : null,
         }),
       });
       const body = await res.json();
@@ -122,12 +117,6 @@ export function CargaMasivaSorteosModal({ eventoId }: { eventoId: string }) {
       formData.append("file", file);
       formData.append("estado", estado);
       formData.append("asistenciaObligatoria", String(asistenciaObligatoria));
-      if (aplicarAntiguedad) {
-        formData.append(
-          "antiguedadMinimaMeses",
-          String(Number(antiguedadMeses) || 6),
-        );
-      }
 
       const res = await fetch(`/api/eventos/${eventoId}/sorteos/carga`, {
         method: "POST",
@@ -313,32 +302,6 @@ export function CargaMasivaSorteosModal({ eventoId }: { eventoId: string }) {
                 />
                 <span>Asistencia obligatoria (Check-in)</span>
               </label>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={aplicarAntiguedad}
-                  onChange={(e) => setAplicarAntiguedad(e.target.checked)}
-                />
-                <span>
-                  Aplicar regla de antigüedad mínima a todos los sorteos:
-                </span>
-              </label>
-              {aplicarAntiguedad && (
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={600}
-                    value={antiguedadMeses}
-                    onChange={(e) => setAntiguedadMeses(e.target.value)}
-                    className="h-7 w-20 text-xs"
-                  />
-                  <span className="text-muted-foreground">meses</span>
-                </div>
-              )}
             </div>
           </div>
 

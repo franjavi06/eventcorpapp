@@ -27,18 +27,12 @@ export async function POST(
       const estado = estadoRaw === "ACTIVO" ? "ACTIVO" : "BORRADOR";
       const asistenciaRaw = formData.get("asistenciaObligatoria");
       const asistenciaObligatoria = asistenciaRaw !== "false";
-      const antiguedadRaw = formData.get("antiguedadMinimaMeses");
-      const antiguedadMinimaMeses =
-        typeof antiguedadRaw === "string" && antiguedadRaw.trim()
-          ? Number(antiguedadRaw)
-          : null;
 
       const items = await parseSorteosExcel(await file.arrayBuffer());
       const resultado = await createSorteosBulk(id, {
         items,
         estado,
         asistenciaObligatoria,
-        antiguedadMinimaMeses,
       });
       return ok(resultado, 201);
     }
