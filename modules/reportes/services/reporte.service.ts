@@ -55,6 +55,8 @@ export async function getReporteEvento(eventoId: string) {
                 apellidos: true,
                 puesto: true,
                 departamento: true,
+                zona: true,
+                clasificacion: true,
                 empresa: { select: { nombre: true } },
               },
             },
@@ -118,6 +120,8 @@ export async function getReporteEvento(eventoId: string) {
       codigoEmpleado: g.participante.empleado.codigo,
       puesto: g.participante.empleado.puesto,
       departamento: g.participante.empleado.departamento,
+      zona: g.participante.empleado.zona,
+      clasificacion: g.participante.empleado.clasificacion,
       empresa: g.participante.empleado.empresa.nombre,
       sorteo: g.ejecucion.sorteo.nombre,
       creadoAt: g.createdAt,
@@ -157,13 +161,22 @@ export async function getReporteGlobal() {
 
   const statsPorEvento = await Promise.all(
     eventos.map(async (e) => {
-      const [participantes, asistencias] = await prisma.$transaction([
-        prisma.eventoParticipante.count({ where: { eventoId: e.id } }),
-        prisma.eventoParticipante.count({
-          where: { eventoId: e.id, asistencia: { isNot: null } },
-        }),
-      ]);
-      return { eventoId: e.id, participantes, asistencias };
+      const [participantes, asistencias, sorteos, ganadoresEvento] =
+        await prisma.$transaction([
+          prisma.eventoParticipante.count({ where: { eventoId: e.id } }),
+          prisma.eventoParticipante.count({
+            where: { eventoId: e.id, asistencia: { isNot: null } },
+          }),
+          prisma.sorteo.count({ where: { eventoId: e.id } }),
+          prisma.sorteoGanador.count({ where: { eventoId: e.id } }),
+        ]);
+      return {
+        eventoId: e.id,
+        participantes,
+        asistencias,
+        sorteos,
+        ganadores: ganadoresEvento,
+      };
     }),
   );
   const statsMap = new Map(statsPorEvento.map((s) => [s.eventoId, s]));
@@ -192,6 +205,8 @@ export async function getReporteGlobal() {
       empresas: e._count.empresas,
       participantes: statsMap.get(e.id)?.participantes ?? 0,
       asistencias: statsMap.get(e.id)?.asistencias ?? 0,
+      sorteos: statsMap.get(e.id)?.sorteos ?? 0,
+      ganadores: statsMap.get(e.id)?.ganadores ?? 0,
     })),
   };
 }

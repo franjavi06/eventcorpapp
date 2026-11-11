@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { Download, FileText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -127,11 +129,31 @@ async function ReportesContent() {
 export default function ReportesPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Reportes</h1>
-        <p className="text-sm text-muted-foreground">
-          Resumen global de eventos, asistencia y sorteos.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Reportes</h1>
+          <p className="text-sm text-muted-foreground">
+            Resumen global de eventos, asistencia y sorteos.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <a
+            href="/api/reportes/pdf"
+            download
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <FileText className="size-4" />
+            Exportar PDF (.pdf)
+          </a>
+          <a
+            href="/api/reportes/excel"
+            download
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Download className="size-4" />
+            Exportar Excel (.xlsx)
+          </a>
+        </div>
       </div>
       <Suspense fallback={<Skeleton className="h-96 w-full" />}>
         <ReportesContent />

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -65,14 +65,24 @@ async function ReporteContent({
           </h1>
           <Badge>{r.evento.estado}</Badge>
         </div>
-        <a
-          href={`/api/eventos/${parsed.data.id}/reporte/excel`}
-          download
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <Download className="size-4" />
-          Exportar Excel (.xlsx)
-        </a>
+        <div className="flex gap-2">
+          <a
+            href={`/api/eventos/${parsed.data.id}/reporte/pdf`}
+            download
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <FileText className="size-4" />
+            Exportar PDF (.pdf)
+          </a>
+          <a
+            href={`/api/eventos/${parsed.data.id}/reporte/excel`}
+            download
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Download className="size-4" />
+            Exportar Excel (.xlsx)
+          </a>
+        </div>
       </div>
       <p className="text-sm text-muted-foreground">
         {r.evento.codigo} · {formatDateTime(r.evento.fechaInicio)} —{" "}
