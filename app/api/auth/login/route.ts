@@ -1,6 +1,7 @@
 import { handleApiError, ok, parseJson } from "@/lib/api";
 import {
   createSessionToken,
+  requestIsSecure,
   sessionCookieOptions,
 } from "@/modules/auth/lib/session";
 import { loginSchema } from "@/modules/auth/schemas/usuario.schema";
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     });
     const res = ok(user);
     res.cookies.set({
-      ...sessionCookieOptions(),
+      ...sessionCookieOptions(undefined, requestIsSecure(request)),
       value: token,
     });
     return res;

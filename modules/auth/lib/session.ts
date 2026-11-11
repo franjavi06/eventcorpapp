@@ -92,12 +92,36 @@ export async function getSessionFromCookies(): Promise<SessionPayload | null> {
   }
 }
 
-export function sessionCookieOptions(maxAge = DEFAULT_TTL_SECONDS) {
+function envCookieSecure(): boolean | undefined {
+  const value = process.env.AUTH_COOKIE_SECURE;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+export function requestIsSecure(request: Request): boolean {
+  const forwarded = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
+  if (forwarded) return forwarded === "https";
+  try {
+    return new URL(request.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function sessionCookieOptions(
+  maxAge = DEFAULT_TTL_SECONDS,
+  secure?: boolean,
+) {
   return {
     name: SESSION_COOKIE_NAME,
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure:
+      envCookieSecure() ?? secure ?? process.env.NODE_ENV === "production",
     path: "/",
     maxAge,
   };
