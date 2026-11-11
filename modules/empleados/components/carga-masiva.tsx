@@ -43,6 +43,9 @@ type ResultadoFotos = {
   errores: { archivo: string; mensaje: string }[];
 };
 
+const FOTOS_LOTE_MAX_FILES = 20;
+const FOTOS_LOTE_MAX_BYTES = 8 * 1024 * 1024;
+
 const selectClass =
   "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -57,6 +60,7 @@ export function CargaMasiva({ empresas }: { empresas: EmpresaOption[] }) {
 
   const [empresaFotosId, setEmpresaFotosId] = useState("");
   const [fotosCount, setFotosCount] = useState(0);
+  const [fotosProgreso, setFotosProgreso] = useState<string | null>(null);
   const [resultadoFotos, setResultadoFotos] = useState<ResultadoFotos | null>(
     null,
   );
@@ -115,29 +119,85 @@ export function CargaMasiva({ empresas }: { empresas: EmpresaOption[] }) {
     }
 
     startFotosTransition(async () => {
-      const fd = new FormData();
-      fd.append("empresaId", empresaFotosId);
-      for (const f of Array.from(files)) {
-        fd.append("files", f);
+      const all = Array.from(files);
+      const lotes: File[][] = [];
+      let lote: File[] = [];
+      let loteBytes = 0;
+      for (const f of all) {
+        if (
+          lote.length > 0 &&
+          (lote.length >= FOTOS_LOTE_MAX_FILES ||
+            loteBytes + f.size > FOTOS_LOTE_MAX_BYTES)
+        ) {
+          lotes.push(lote);
+          lote = [];
+          loteBytes = 0;
+        }
+        lote.push(f);
+        loteBytes += f.size;
       }
-      const res = await fetch("/api/empleados/fotos", {
-        method: "POST",
-        body: fd,
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        toast.error(body.error?.message ?? "No se pudieron subir las fotos");
-        return;
+      if (lote.length > 0) {
+        lotes.push(lote);
       }
-      const r: ResultadoFotos = body.data;
-      setResultadoFotos(r);
-      if (r.errores.length === 0) {
+
+      const acumulado: ResultadoFotos = {
+        carpeta: `public/fotos/${empresaFotosSeleccionada?.codigo ?? ""}`,
+        guardadas: 0,
+        empleadosCoincidentes: 0,
+        sinEmpleado: [],
+        errores: [],
+      };
+
+      let procesadas = 0;
+      setFotosProgreso(`Subiendo 0/${all.length}…`);
+
+      for (const l of lotes) {
+        const fd = new FormData();
+        fd.append("empresaId", empresaFotosId);
+        for (const f of l) {
+          fd.append("files", f);
+        }
+        try {
+          const res = await fetch("/api/empleados/fotos", {
+            method: "POST",
+            body: fd,
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg =
+              body.error?.message ?? "No se pudieron subir las fotos";
+            for (const f of l) {
+              acumulado.errores.push({ archivo: f.name, mensaje: msg });
+            }
+          } else {
+            const r: ResultadoFotos = body.data;
+            acumulado.carpeta = r.carpeta;
+            acumulado.guardadas += r.guardadas;
+            acumulado.empleadosCoincidentes += r.empleadosCoincidentes;
+            acumulado.sinEmpleado.push(...r.sinEmpleado);
+            acumulado.errores.push(...r.errores);
+          }
+        } catch {
+          for (const f of l) {
+            acumulado.errores.push({
+              archivo: f.name,
+              mensaje: "Error de red al subir el archivo",
+            });
+          }
+        }
+        procesadas += l.length;
+        setFotosProgreso(`Subiendo ${procesadas}/${all.length}…`);
+      }
+
+      setFotosProgreso(null);
+      setResultadoFotos(acumulado);
+      if (acumulado.errores.length === 0) {
         toast.success(
-          `${r.guardadas} foto(s) guardada(s) en ${r.carpeta}`,
+          `${acumulado.guardadas} foto(s) guardada(s) en ${acumulado.carpeta}`,
         );
       } else {
         toast.warning(
-          `${r.guardadas} guardada(s), ${r.errores.length} con errores`,
+          `${acumulado.guardadas} guardada(s), ${acumulado.errores.length} con errores`,
         );
       }
       if (fotosRef.current) {
@@ -333,7 +393,9 @@ export function CargaMasiva({ empresas }: { empresas: EmpresaOption[] }) {
             disabled={pendingFotos || !empresaFotosId || fotosCount === 0}
           >
             <ImageUp className="size-4" />
-            {pendingFotos ? "Subiendo fotos…" : "Subir fotos"}
+            {pendingFotos
+              ? (fotosProgreso ?? "Subiendo fotos…")
+              : "Subir fotos"}
           </Button>
         </CardContent>
       </Card>

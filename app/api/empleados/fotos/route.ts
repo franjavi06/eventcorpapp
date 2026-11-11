@@ -18,7 +18,14 @@ const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 export async function POST(request: Request) {
   try {
     await requirePermission("EMPLEADOS_WRITE");
-    const form = await request.formData();
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      throw new ValidationError(
+        "No se pudo leer el archivo enviado (cuerpo demasiado grande o incompleto)",
+      );
+    }
     const empresaIdRaw = form.get("empresaId");
     const parsedId = uuidSchema.safeParse(empresaIdRaw);
     if (!parsedId.success) {

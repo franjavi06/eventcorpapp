@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
     agentUpgrade: "security",
+    proxyClientMaxBodySize: "50mb",
   },
   cacheComponents: true,
   partialPrefetching: true,
