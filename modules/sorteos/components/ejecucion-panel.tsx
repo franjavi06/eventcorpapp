@@ -123,6 +123,7 @@ export function EjecucionPanel({
   const [reveladosCount, setReveladosCount] = useState(0);
   const [justRevealedIdx, setJustRevealedIdx] = useState<number | null>(null);
   const poolRef = useRef<string[]>([]);
+  const winnersListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onFullscreenChange() {
@@ -224,6 +225,14 @@ export function EjecucionPanel({
       await revelarSiguiente(lista, nuevoCount);
     }
   }
+
+  // Al revelarse un nuevo ganador, volver al tope del listado (el más
+  // reciente se muestra primero).
+  useEffect(() => {
+    if (reveladosCount > 0) {
+      winnersListRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [reveladosCount]);
 
   async function iniciarSorteo() {
     setIsSpinning(true);
@@ -328,13 +337,13 @@ export function EjecucionPanel({
   return (
     <div
       ref={panelRef}
-      className={`flex w-full flex-col justify-between bg-card p-8 ${
+      className={`flex w-full flex-col bg-card ${
         isFullscreen
-          ? "fixed inset-0 z-50 min-h-screen overflow-y-auto rounded-none border-0 p-10"
-          : "rounded-3xl border"
+          ? "fixed inset-0 z-50 h-dvh gap-4 overflow-y-auto rounded-none border-0 px-8 py-6"
+          : "gap-6 rounded-3xl border p-8"
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wider text-indigo-500">
             Módulo de Ruleta y Premiación
@@ -424,7 +433,11 @@ export function EjecucionPanel({
       </div>
 
       {empresasParticipantes.length > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-4 rounded-2xl border bg-background/50 px-5 py-4">
+        <div
+          className={`flex shrink-0 flex-wrap items-center justify-center gap-4 rounded-2xl border bg-background/50 px-5 ${
+            isFullscreen ? "py-2.5" : "py-4"
+          }`}
+        >
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Empresas participantes:
           </span>
@@ -446,7 +459,11 @@ export function EjecucionPanel({
         </div>
       )}
 
-      <div className="relative my-8 overflow-hidden rounded-3xl border bg-background/60 px-6 py-14 text-center shadow-inner">
+      <div
+        className={`relative shrink-0 overflow-hidden rounded-3xl border bg-background/60 px-6 text-center shadow-inner ${
+          isFullscreen ? "py-7" : "py-14"
+        }`}
+      >
         {isSpinning ? (
           <div className="space-y-4">
             <RefreshCw className="mx-auto size-12 animate-spin text-indigo-500" />
@@ -534,69 +551,7 @@ export function EjecucionPanel({
         )}
       </div>
 
-      {ganadoresMostrados.length > 0 && (
-        <div className="mb-8 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              <Sparkles className="size-4 text-amber-500" />
-              Ganadores revelados ({ganadoresMostrados.length} de{" "}
-              {yaEjecutadoInicial ? ganadoresIniciales.length : totalEsperado})
-            </h3>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {ganadoresMostrados
-              .map((g, idx) => ({ g, idx }))
-              .reverse()
-              .map(({ g, idx }) => {
-                const cargo = formatCargo(g);
-                return (
-                  <div
-                    key={g.codigo}
-                    className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
-                      enSecuencia && idx === reveladosCount - 1
-                        ? "border-amber-500/50 bg-amber-500/10 shadow-md"
-                        : "bg-background/60"
-                    }`}
-                  >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
-                      #{idx + 1}
-                    </span>
-                    <EmpleadoAvatar
-                      empresaCodigo={g.empresaCodigo}
-                      empleadoCodigo={g.codigo}
-                      nombre={g.nombre}
-                      size="md"
-                    />
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="truncate font-bold text-foreground">
-                        {g.nombre}
-                      </p>
-                      {cargo && (
-                        <p className="truncate text-xs font-medium text-indigo-500">
-                          {cargo}
-                        </p>
-                      )}
-                      <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-                        <EmpresaLogo
-                          empresaCodigo={g.empresaCodigo}
-                          nombre={g.empresa}
-                          size="sm"
-                        />
-                        <span className="truncate font-medium text-foreground">
-                          {g.empresa}
-                        </span>
-                        <span>·</span>
-                        <span className="font-mono">{g.codigo}</span>
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-center gap-3">
         {faltanPorRevelar && modoRevelacion === "MANUAL" ? (
           <Button
             type="button"
@@ -680,6 +635,83 @@ export function EjecucionPanel({
             </Button>
           )}
       </div>
+
+      {ganadoresMostrados.length > 0 && (
+        <div
+          className={
+            isFullscreen
+              ? "flex min-h-[10rem] flex-1 flex-col gap-2.5 overflow-hidden"
+              : "mb-8 space-y-3"
+          }
+        >
+          <div className="flex shrink-0 items-center justify-between">
+            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="size-4 text-amber-500" />
+              Ganadores revelados ({ganadoresMostrados.length} de{" "}
+              {yaEjecutadoInicial ? ganadoresIniciales.length : totalEsperado})
+            </h3>
+          </div>
+          <div
+            ref={winnersListRef}
+            className={`pr-1 ${
+              isFullscreen
+                ? "min-h-0 flex-1 overflow-y-auto"
+                : "max-h-96 overflow-y-auto"
+            }`}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {ganadoresMostrados
+              .map((g, idx) => ({ g, idx }))
+              .reverse()
+              .map(({ g, idx }) => {
+                const cargo = formatCargo(g);
+                return (
+                  <div
+                    key={g.codigo}
+                    className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
+                      enSecuencia && idx === reveladosCount - 1
+                        ? "border-amber-500/50 bg-amber-500/10 shadow-md"
+                        : "bg-background/60"
+                    }`}
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
+                      #{idx + 1}
+                    </span>
+                    <EmpleadoAvatar
+                      empresaCodigo={g.empresaCodigo}
+                      empleadoCodigo={g.codigo}
+                      nombre={g.nombre}
+                      size="md"
+                    />
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="truncate font-bold text-foreground">
+                        {g.nombre}
+                      </p>
+                      {cargo && (
+                        <p className="truncate text-xs font-medium text-indigo-500">
+                          {cargo}
+                        </p>
+                      )}
+                      <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+                        <EmpresaLogo
+                          empresaCodigo={g.empresaCodigo}
+                          nombre={g.empresa}
+                          size="sm"
+                        />
+                        <span className="truncate font-medium text-foreground">
+                          {g.empresa}
+                        </span>
+                        <span>·</span>
+                        <span className="font-mono">{g.codigo}</span>
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
