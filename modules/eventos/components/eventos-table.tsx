@@ -97,18 +97,18 @@ export async function EventosTable({ query }: { query: EventoListQuery }) {
             <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
               <div className="flex flex-wrap gap-2">
                 <Link
-                  href={`/eventos/${evento.id}/check-in`}
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
-                  <ClipboardCheck className="size-3.5" />
-                  Check-in
-                </Link>
-                <Link
                   href={`/eventos/${evento.id}/participantes`}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
                   <Users className="size-3.5" />
                   Participantes
+                </Link>
+                <Link
+                  href={`/eventos/${evento.id}/check-in`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <ClipboardCheck className="size-3.5" />
+                  Check-in
                 </Link>
                 <Link
                   href={`/eventos/${evento.id}/sorteos`}
