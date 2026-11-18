@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { firstValues } from "@/lib/params";
 import { idParamSchema } from "@/lib/validations/common";
 import { getEvento } from "@/modules/eventos/services/evento.service";
+import { CheckInFullscreenContainer } from "@/modules/participantes/components/checkin-fullscreen-container";
 import { CheckInList } from "@/modules/participantes/components/checkin-list";
 import { PoncheForm } from "@/modules/participantes/components/ponche-form";
 import { participanteListQuerySchema } from "@/modules/participantes/schemas/participante.schema";
@@ -90,8 +91,10 @@ export default function CheckInPage({
   searchParams,
 }: PageProps<"/eventos/[id]/check-in">) {
   return (
-    <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-      <CheckInContent params={params} searchParams={searchParams} />
-    </Suspense>
+    <CheckInFullscreenContainer>
+      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+        <CheckInContent params={params} searchParams={searchParams} />
+      </Suspense>
+    </CheckInFullscreenContainer>
   );
 }

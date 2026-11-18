@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/format";
+import { useCheckInFullscreen } from "@/modules/participantes/components/checkin-fullscreen-container";
 
 export type EmpresaCheckinOption = {
   id: string;
@@ -70,39 +71,48 @@ export function PoncheForm({
   empresas = [],
 }: PoncheFormProps) {
   const router = useRouter();
+  const pageFullscreen = useCheckInFullscreen();
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [localFullscreen, setLocalFullscreen] = useState(false);
   const [empresaId, setEmpresaId] = useState("");
   const [ultimo, setUltimo] = useState<UltimoPonche | null>(null);
   const [candidatos, setCandidatos] = useState<CandidatoAmbiguo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const isFullscreen = pageFullscreen
+    ? pageFullscreen.isFullscreen
+    : localFullscreen;
+
   useEffect(() => {
     function onFullscreenChange() {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      if (!pageFullscreen) {
+        setLocalFullscreen(Boolean(document.fullscreenElement));
+      }
       inputRef.current?.focus();
     }
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
-  }, []);
+  }, [pageFullscreen]);
 
   async function toggleFullscreen() {
     try {
-      if (document.fullscreenElement) {
+      if (pageFullscreen) {
+        await pageFullscreen.toggleFullscreen();
+      } else if (document.fullscreenElement) {
         await document.exitFullscreen();
-        setIsFullscreen(false);
+        setLocalFullscreen(false);
       } else if (panelRef.current?.requestFullscreen) {
         await panelRef.current.requestFullscreen();
-        setIsFullscreen(true);
+        setLocalFullscreen(true);
       } else {
-        setIsFullscreen((v) => !v);
+        setLocalFullscreen((v) => !v);
       }
     } catch {
-      setIsFullscreen((v) => !v);
+      if (!pageFullscreen) setLocalFullscreen((v) => !v);
     } finally {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
@@ -175,7 +185,7 @@ export function PoncheForm({
     <div
       ref={panelRef}
       className={`space-y-4 bg-card ${
-        isFullscreen
+        !pageFullscreen && localFullscreen
           ? "fixed inset-0 z-50 flex min-h-screen flex-col justify-center overflow-y-auto p-10"
           : "rounded-3xl border p-6"
       }`}
