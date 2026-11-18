@@ -17,7 +17,12 @@ import {
   buildGlobalReporteExcel,
   buildGlobalReportePdf,
 } from "@/modules/reportes/services/reporte-export.service";
-import { ejecutarSorteo } from "@/modules/sorteos/services/ejecucion.service";
+import { getReporteEvento } from "@/modules/reportes/services/reporte.service";
+import {
+  ejecutarSorteo,
+  listEjecuciones,
+  reemplazarGanadorAusente,
+} from "@/modules/sorteos/services/ejecucion.service";
 import {
   createSorteo,
   updateSorteo,
@@ -69,7 +74,7 @@ async function setupConGanador() {
   });
   await updateSorteo(sorteo.id, { estado: "ACTIVO" });
   await ejecutarSorteo(sorteo.id);
-  return { empresa, evento };
+  return { empresa, evento, sorteo };
 }
 
 async function loadWorkbook(buffer: Buffer) {
@@ -136,5 +141,33 @@ describe("exportación de reportes", () => {
     expect(filename).toBe("reporte-global.pdf");
     expect(buffer.subarray(0, 5).toString()).toBe("%PDF-");
     expect(buffer.subarray(-6).toString()).toContain("%%EOF");
+  });
+
+  it("reporta solo ganadores VALIDO y expone los reemplazos", async () => {
+    const { evento, sorteo } = await setupConGanador();
+    const [eje] = await listEjecuciones(sorteo.id);
+    await reemplazarGanadorAusente(evento.id, sorteo.id, eje.ganadores[0].id);
+
+    const reporte = await getReporteEvento(evento.id);
+
+    expect(reporte.totales.ganadores).toBe(1); // solo el válido
+    expect(reporte.ganadores).toHaveLength(1);
+    expect(reporte.ganadores[0].esReemplazo).toBe(true);
+    expect(reporte.reemplazos).toHaveLength(1);
+    expect(reporte.reemplazos[0].sustituto).toBe(reporte.ganadores[0].empleado);
+  });
+
+  it("agrega la hoja Reemplazos y marca Tipo en Ganadores solo cuando hay ausentes", async () => {
+    const { evento, sorteo } = await setupConGanador();
+    const [eje] = await listEjecuciones(sorteo.id);
+    await reemplazarGanadorAusente(evento.id, sorteo.id, eje.ganadores[0].id);
+
+    const { buffer } = await buildEventoReporteExcel(evento.id);
+    const wb = await loadWorkbook(buffer);
+
+    expect(wb.worksheets.map((w) => w.name)).toContain("Reemplazos");
+    expect(wb.getWorksheet("Reemplazos")?.rowCount).toBe(2);
+    const ganadores = wb.getWorksheet("Ganadores");
+    expect(ganadores?.getRow(2).getCell(9).value).toBe("Reemplazo");
   });
 });

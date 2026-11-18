@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { ConflictError, ValidationError } from "@/lib/errors";
+import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { createEmpresa } from "@/modules/empresas/services/empresa.service";
 import { createEmpleado } from "@/modules/empleados/services/empleado.service";
@@ -12,6 +12,7 @@ import { checkIn } from "@/modules/participantes/services/participante.service";
 import {
   ejecutarSorteo,
   listEjecuciones,
+  reemplazarGanadorAusente,
 } from "@/modules/sorteos/services/ejecucion.service";
 import {
   addCuota,
@@ -319,5 +320,202 @@ describe("ejecución de sorteos", () => {
     );
     expect(deptsGanadores.filter((d) => d === "ADMINISTRACION")).toHaveLength(1);
     expect(deptsGanadores.filter((d) => d === "OPERACIONES")).toHaveLength(2);
+  });
+});
+
+describe("reemplazo de ganador ausente", () => {
+  beforeEach(cleanDatabase);
+
+  async function ganadoresDe(sorteoId: string) {
+    const [eje] = await listEjecuciones(sorteoId);
+    return eje.ganadores;
+  }
+
+  it("marca AUSENTE al ganador, crea reemplazo VALIDO en su posición y audita", async () => {
+    const { evento } = await setup(4);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    const res = await ejecutarSorteo(sorteo.id);
+    const [ganador] = await ganadoresDe(sorteo.id);
+    expect(ganador.posicion).toBe(1);
+
+    const out = await reemplazarGanadorAusente(
+      evento.id,
+      sorteo.id,
+      ganador.id,
+      "Se retiró del evento",
+      "admin",
+    );
+
+    expect(out.ganadorAusenteId).toBe(ganador.id);
+    expect(out.posicion).toBe(1);
+    expect(out.reemplazo.empleadoId).not.toBe(res.ganadores[0]);
+    const ausenteEmpId = res.ganadores[0];
+    expect(out.reemplazo.nombre).toBeTruthy();
+
+    const original = await prisma.sorteoGanador.findUniqueOrThrow({
+      where: { id: ganador.id },
+    });
+    expect(original.estado).toBe("AUSENTE");
+    expect(original.motivoAusencia).toBe("Se retiró del evento");
+    expect(original.reemplazadoPor).toBe("admin");
+    expect(original.reemplazadoAt).not.toBeNull();
+    expect(ausenteEmpId).toBe(res.ganadores[0]);
+
+    const nuevo = await prisma.sorteoGanador.findUniqueOrThrow({
+      where: { id: out.ganadorReemplazoId },
+    });
+    expect(nuevo.estado).toBe("VALIDO");
+    expect(nuevo.posicion).toBe(1);
+    expect(nuevo.reemplazaAGanadorId).toBe(ganador.id);
+    expect(nuevo.ejecucionId).toBe(ganador.ejecucionId);
+
+    const audit = await prisma.auditoria.findFirstOrThrow({
+      where: { accion: "REEMPLAZAR_GANADOR", entidadId: ganador.id },
+    });
+    expect(audit.actor).toBe("admin");
+    expect((audit.despues as { reemplazoGanadorId: string }).reemplazoGanadorId).toBe(
+      nuevo.id,
+    );
+  });
+
+  it("usa 'No presente' como motivo por defecto", async () => {
+    const { evento } = await setup(3);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+    const [ganador] = await ganadoresDe(sorteo.id);
+
+    await reemplazarGanadorAusente(evento.id, sorteo.id, ganador.id);
+
+    const original = await prisma.sorteoGanador.findUniqueOrThrow({
+      where: { id: ganador.id },
+    });
+    expect(original.motivoAusencia).toBe("No presente");
+  });
+
+  it("rechaza reemplazar un ganador ya ausente", async () => {
+    const { evento } = await setup(4);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+    const [ganador] = await ganadoresDe(sorteo.id);
+    await reemplazarGanadorAusente(evento.id, sorteo.id, ganador.id);
+
+    await expect(
+      reemplazarGanadorAusente(evento.id, sorteo.id, ganador.id),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("falla sin modificar nada cuando no hay candidatos de reemplazo", async () => {
+    const { evento } = await setup(2);
+    const sorteo = await sorteoActivo(evento.id);
+    await ejecutarSorteo(sorteo.id); // ganan los 2 → pool vacío
+    const [ganador] = await ganadoresDe(sorteo.id);
+
+    await expect(
+      reemplazarGanadorAusente(evento.id, sorteo.id, ganador.id),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const original = await prisma.sorteoGanador.findUniqueOrThrow({
+      where: { id: ganador.id },
+    });
+    expect(original.estado).toBe("VALIDO"); // sin cambios
+    expect(
+      await prisma.sorteoGanador.count({ where: { eventoId: evento.id } }),
+    ).toBe(2);
+  });
+
+  it("respeta la cuota del puesto al elegir el reemplazo", async () => {
+    const { empresa, evento } = await setup(0);
+    for (const [i, dept] of [
+      [1, "VENTAS"],
+      [2, "VENTAS"],
+      [3, "IT"],
+      [4, "IT"],
+    ] as const) {
+      const e = await createEmpleado({
+        ...empleadoInput(empresa.id, i),
+        departamento: dept,
+      });
+      await checkIn(evento.id, { empleadoId: e.id });
+    }
+
+    const sorteo = await createSorteo(evento.id, {
+      ...SORTEO,
+      cantidadGanadores: 1,
+      estado: "ACTIVO",
+    });
+    await addCuota(sorteo.id, {
+      entidad: "EMPLEADO",
+      campo: "departamento",
+      valor: "VENTAS",
+      cantidad: 1,
+    });
+
+    await ejecutarSorteo(sorteo.id);
+    const [ganador] = await ganadoresDe(sorteo.id);
+    expect(ganador.cuotaSnapshot).not.toBeNull();
+
+    const out = await reemplazarGanadorAusente(
+      evento.id,
+      sorteo.id,
+      ganador.id,
+    );
+
+    const reemplazoEmpleado = await prisma.empleado.findUniqueOrThrow({
+      where: { id: out.reemplazo.empleadoId },
+    });
+    expect(reemplazoEmpleado.departamento).toBe("VENTAS");
+
+    // si el único VENTAS restante también sale, ya no hay quién cumpla la cuota
+    const [eje] = await listEjecuciones(sorteo.id);
+    const nuevo = eje.ganadores.find((g) => g.id === out.ganadorReemplazoId)!;
+    await expect(
+      reemplazarGanadorAusente(evento.id, sorteo.id, nuevo.id),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("el ausente sigue excluido de sorteos posteriores del evento", async () => {
+    const { evento, empleados } = await setup(3);
+    const s1 = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    const r1 = await ejecutarSorteo(s1.id);
+    const [ganador] = await ganadoresDe(s1.id);
+    await reemplazarGanadorAusente(evento.id, s1.id, ganador.id);
+
+    // el evento tiene 3 ganadores registrados (1 ausente + 1 válido) pero solo
+    // 2 empleados distintos ya premiados; queda 1 candidato para el sorteo 2
+    const s2 = await sorteoActivo(evento.id, {
+      nombre: "Segundo",
+      cantidadGanadores: 2,
+    });
+    await expect(ejecutarSorteo(s2.id)).rejects.toBeInstanceOf(ConflictError);
+
+    const s3 = await sorteoActivo(evento.id, {
+      nombre: "Tercero",
+      cantidadGanadores: 1,
+    });
+    const r3 = await ejecutarSorteo(s3.id);
+    expect(r3.ganadores).toHaveLength(1);
+    expect(r3.ganadores[0]).not.toBe(r1.ganadores[0]);
+
+    const empleadosPremiados = await prisma.sorteoGanador.groupBy({
+      by: ["empleadoId"],
+      where: { eventoId: evento.id },
+    });
+    expect(empleadosPremiados).toHaveLength(3); // 3 empleados, 4 filas
+    expect(empleados).toHaveLength(3);
+  });
+
+  it("rechaza IDs de otro evento o sorteo", async () => {
+    const { evento } = await setup(3);
+    const otroEvento = await createEvento({ ...EVENTO, codigo: "EVT-2" });
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+    const [ganador] = await ganadoresDe(sorteo.id);
+
+    await expect(
+      reemplazarGanadorAusente(otroEvento.id, sorteo.id, ganador.id),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      reemplazarGanadorAusente(evento.id, crypto.randomUUID(), ganador.id),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

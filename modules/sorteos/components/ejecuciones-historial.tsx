@@ -60,17 +60,37 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                       const cargo = [emp.puesto, emp.departamento]
                         .filter(Boolean)
                         .join(" · ");
+                      const ausente = g.estado === "AUSENTE";
+                      const reemplazadoDe = g.reemplazaA?.participante.empleado;
                       return (
-                        <li key={g.id} className="text-sm">
+                        <li
+                          key={g.id}
+                          className={`text-sm ${ausente ? "text-muted-foreground line-through decoration-rose-500/50" : ""}`}
+                        >
                           <span className="font-mono">{emp.codigo}</span> —{" "}
                           {emp.nombres} {emp.apellidos}
                           {cargo ? (
-                            <span className="text-muted-foreground">
+                            <span className="text-muted-foreground no-underline">
                               {" "}
                               · {cargo}
                             </span>
                           ) : null}{" "}
                           ({emp.empresa.nombre})
+                          {ausente ? (
+                            <span className="ml-2 inline-flex items-center gap-1 no-underline">
+                              <Badge variant="destructive">No presente</Badge>
+                              {g.motivoAusencia && (
+                                <span className="text-xs">
+                                  · {g.motivoAusencia}
+                                </span>
+                              )}
+                            </span>
+                          ) : reemplazadoDe ? (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              (reemplazo de {reemplazadoDe.nombres}{" "}
+                              {reemplazadoDe.apellidos})
+                            </span>
+                          ) : null}
                         </li>
                       );
                     })}

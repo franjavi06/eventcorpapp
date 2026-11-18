@@ -34,14 +34,19 @@ async function EjecutarSorteoContent({
   ]);
   const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
   const ganadoresIniciales =
-    completada?.ganadores.map((g) => ({
-      codigo: g.participante.empleado.codigo,
-      nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
-      empresa: g.participante.empleado.empresa.nombre,
-      empresaCodigo: g.participante.empleado.empresa.codigo,
-      puesto: g.participante.empleado.puesto,
-      departamento: g.participante.empleado.departamento,
-    })) ?? [];
+    completada?.ganadores
+      .filter((g) => g.estado === "VALIDO")
+      .map((g) => ({
+        id: g.id,
+        posicion: g.posicion,
+        esReemplazo: g.reemplazaAGanadorId !== null,
+        codigo: g.participante.empleado.codigo,
+        nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
+        empresa: g.participante.empleado.empresa.nombre,
+        empresaCodigo: g.participante.empleado.empresa.codigo,
+        puesto: g.participante.empleado.puesto,
+        departamento: g.participante.empleado.departamento,
+      })) ?? [];
 
   const empresasParticipantes = sorteo.evento.empresas
     .map((ee) => ee.empresa)

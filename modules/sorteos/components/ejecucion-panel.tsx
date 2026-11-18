@@ -13,6 +13,7 @@ import {
   Sparkles,
   Ticket,
   Trophy,
+  UserX,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,10 +31,14 @@ import {
 import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
 import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useSorteoFullscreen } from "@/modules/sorteos/components/sorteo-fullscreen-container";
 import type { SorteosNavegacion } from "@/modules/sorteos/services/sorteo.service";
 
 export type GanadorInfo = {
+  id?: string;
+  posicion?: number;
+  esReemplazo?: boolean;
   codigo: string;
   nombre: string;
   empresa: string;
@@ -74,6 +79,10 @@ type ElegibleItem = {
 type EjecucionItem = {
   estado: string;
   ganadores: {
+    id: string;
+    posicion: number;
+    estado: string;
+    reemplazaAGanadorId: string | null;
     participante: {
       empleado: {
         codigo: string;
@@ -85,6 +94,19 @@ type EjecucionItem = {
       };
     };
   }[];
+};
+
+type ReemplazoApiData = {
+  ganadorReemplazoId: string;
+  posicion: number;
+  reemplazo: {
+    codigo: string;
+    nombre: string;
+    empresa: string;
+    empresaCodigo: string;
+    puesto: string | null;
+    departamento: string | null;
+  };
 };
 
 const PAUSA_CELEBRACION_MS = 1800;
@@ -120,6 +142,15 @@ export function EjecucionPanel({
   const [colaGanadores, setColaGanadores] = useState<GanadorInfo[] | null>(
     null,
   );
+  const [ganadoresActuales, setGanadoresActuales] =
+    useState<GanadorInfo[]>(ganadoresIniciales);
+  const [reemplazoDestacado, setReemplazoDestacado] =
+    useState<GanadorInfo | null>(null);
+  const [reemplazoTarget, setReemplazoTarget] = useState<GanadorInfo | null>(
+    null,
+  );
+  const [motivoReemplazo, setMotivoReemplazo] = useState("");
+  const [reemplazando, setReemplazando] = useState(false);
   const [reveladosCount, setReveladosCount] = useState(0);
   const [justRevealedIdx, setJustRevealedIdx] = useState<number | null>(null);
   const poolRef = useRef<string[]>([]);
@@ -175,7 +206,7 @@ export function EjecucionPanel({
   const enSecuencia = colaGanadores !== null;
   const ganadoresMostrados = enSecuencia
     ? colaGanadores.slice(0, reveladosCount)
-    : ganadoresIniciales;
+    : ganadoresActuales;
   const totalEsperado = colaGanadores?.length ?? cantidadGanadores;
   const faltanPorRevelar =
     enSecuencia && reveladosCount < colaGanadores.length;
@@ -183,6 +214,7 @@ export function EjecucionPanel({
     enSecuencia && reveladosCount > 0
       ? colaGanadores[reveladosCount - 1]
       : null;
+  const destacado = reemplazoDestacado ?? ultimoRevelado;
 
   function animarGiro(ms: number): Promise<void> {
     const pool =
@@ -211,6 +243,7 @@ export function EjecucionPanel({
     const nuevoCount = indice + 1;
     setReveladosCount(nuevoCount);
     setJustRevealedIdx(indice);
+    setReemplazoDestacado(null);
 
     if (nuevoCount >= lista.length) {
       toast.success(
@@ -237,6 +270,7 @@ export function EjecucionPanel({
   async function iniciarSorteo() {
     setIsSpinning(true);
     setJustRevealedIdx(null);
+    setReemplazoDestacado(null);
     setRollingName("PREPARANDO TÓMBOLA...");
 
     try {
@@ -286,14 +320,19 @@ export function EjecucionPanel({
         const ejecuciones: EjecucionItem[] = histBody.data ?? [];
         const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
         if (completada) {
-          adjudicados = completada.ganadores.map((g) => ({
-            codigo: g.participante.empleado.codigo,
-            nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
-            empresa: g.participante.empleado.empresa.nombre,
-            empresaCodigo: g.participante.empleado.empresa.codigo,
-            puesto: g.participante.empleado.puesto,
-            departamento: g.participante.empleado.departamento,
-          }));
+          adjudicados = completada.ganadores
+            .filter((g) => g.estado === "VALIDO")
+            .map((g) => ({
+              id: g.id,
+              posicion: g.posicion,
+              esReemplazo: g.reemplazaAGanadorId !== null,
+              codigo: g.participante.empleado.codigo,
+              nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
+              empresa: g.participante.empleado.empresa.nombre,
+              empresaCodigo: g.participante.empleado.empresa.codigo,
+              puesto: g.participante.empleado.puesto,
+              departamento: g.participante.empleado.departamento,
+            }));
         }
       }
 
@@ -327,12 +366,72 @@ export function EjecucionPanel({
     }
   }
 
+  async function ejecutarReemplazo() {
+    const target = reemplazoTarget;
+    if (!target?.id) return;
+    setReemplazoTarget(null);
+    setReemplazando(true);
+    const motivo = motivoReemplazo.trim() || null;
+    const giro = animarGiro(duracionMs);
+    try {
+      const res = await fetch(
+        `/api/eventos/${eventoId}/sorteos/${sorteoId}/ganadores/${target.id}/reemplazar`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ motivo }),
+        },
+      );
+      const body = await res.json();
+      await giro;
+      if (!res.ok) {
+        toast.error(
+          body.error?.message ?? "No se pudo reemplazar al ganador",
+        );
+        return;
+      }
+      const data = body.data as ReemplazoApiData;
+      const nuevo: GanadorInfo = {
+        id: data.ganadorReemplazoId,
+        posicion: data.posicion,
+        esReemplazo: true,
+        codigo: data.reemplazo.codigo,
+        nombre: data.reemplazo.nombre,
+        empresa: data.reemplazo.empresa,
+        empresaCodigo: data.reemplazo.empresaCodigo,
+        puesto: data.reemplazo.puesto,
+        departamento: data.reemplazo.departamento,
+      };
+      const sustituir = (lista: GanadorInfo[]) =>
+        lista.map((g) => (g.id === target.id ? nuevo : g));
+      const idxReemplazado = (enSecuencia
+        ? colaGanadores
+        : ganadoresActuales
+      )?.findIndex((g) => g.id === target.id);
+      if (enSecuencia) {
+        setColaGanadores((prev) => (prev ? sustituir(prev) : prev));
+      } else {
+        setGanadoresActuales((prev) => sustituir(prev));
+      }
+      setReemplazoDestacado(nuevo);
+      setJustRevealedIdx(idxReemplazado ?? (nuevo.posicion ?? 1) - 1);
+      toast.success(
+        `Reemplazo confirmado: ${nuevo.nombre} recibe el premio #${nuevo.posicion}`,
+      );
+    } catch {
+      await giro;
+      toast.error("Error de red al reemplazar al ganador");
+    } finally {
+      setReemplazando(false);
+    }
+  }
+
   const yaEjecutadoInicial =
     !enSecuencia && ganadoresIniciales.length > 0;
   const ejecutable =
     estado === "ACTIVO" && !enSecuencia && ganadoresIniciales.length === 0;
   const indiceEnGiro = enSecuencia ? reveladosCount + 1 : 1;
-  const cargoUltimo = ultimoRevelado ? formatCargo(ultimoRevelado) : null;
+  const cargoUltimo = destacado ? formatCargo(destacado) : null;
 
   return (
     <div
@@ -477,30 +576,31 @@ export function EjecucionPanel({
               Verificando elegibilidad y seleccionando al azar...
             </p>
           </div>
-        ) : ultimoRevelado ? (
+        ) : destacado ? (
           <div className="space-y-4">
             <div className="flex flex-col items-center justify-center gap-3">
               <div className="relative">
                 <EmpleadoAvatar
-                  empresaCodigo={ultimoRevelado.empresaCodigo}
-                  empleadoCodigo={ultimoRevelado.codigo}
-                  nombre={ultimoRevelado.nombre}
+                  empresaCodigo={destacado.empresaCodigo}
+                  empleadoCodigo={destacado.codigo}
+                  nombre={destacado.nombre}
                   size="xl"
                   className="border-2 border-amber-500/50 shadow-2xl"
                 />
                 <span className="absolute -right-2 -bottom-2 inline-flex rounded-xl border border-amber-500/40 bg-amber-500 p-1.5 text-white shadow-lg">
                   <Trophy
-                    className={`size-5 ${justRevealedIdx === reveladosCount - 1 ? "animate-bounce" : ""}`}
+                    className={`size-5 ${reemplazoDestacado ? "animate-bounce" : justRevealedIdx === reveladosCount - 1 ? "animate-bounce" : ""}`}
                   />
                 </span>
               </div>
             </div>
             <span className="block text-xs font-bold uppercase tracking-widest text-amber-500">
-              ¡Ganador #{reveladosCount} de {totalEsperado}!
+              ¡Ganador #{destacado.posicion ?? reveladosCount} de{" "}
+              {totalEsperado}!{destacado.esReemplazo ? " Reemplazo" : ""}
             </span>
             <div className="space-y-1.5">
               <p className="text-3xl font-black text-foreground md:text-5xl">
-                {ultimoRevelado.nombre}
+                {destacado.nombre}
               </p>
               {cargoUltimo && (
                 <p className="inline-flex items-center gap-1.5 text-base font-semibold text-indigo-500 md:text-lg">
@@ -510,16 +610,28 @@ export function EjecucionPanel({
               )}
               <p className="flex items-center justify-center gap-2.5 text-base text-muted-foreground">
                 <EmpresaLogo
-                  empresaCodigo={ultimoRevelado.empresaCodigo}
-                  nombre={ultimoRevelado.empresa}
+                  empresaCodigo={destacado.empresaCodigo}
+                  nombre={destacado.empresa}
                   size="sm"
                 />
                 <span className="font-semibold text-foreground">
-                  {ultimoRevelado.empresa}
+                  {destacado.empresa}
                 </span>
                 <span>·</span>
-                <span className="font-mono">{ultimoRevelado.codigo}</span>
+                <span className="font-mono">{destacado.codigo}</span>
               </p>
+              {destacado.id && !isSpinning && !reemplazando && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setReemplazoTarget(destacado)}
+                >
+                  <UserX className="size-3.5" />
+                  No presente — reemplazar
+                </Button>
+              )}
             </div>
           </div>
         ) : yaEjecutadoInicial ? (
@@ -667,15 +779,15 @@ export function EjecucionPanel({
                 const cargo = formatCargo(g);
                 return (
                   <div
-                    key={g.codigo}
+                    key={g.id ?? g.codigo}
                     className={`flex items-start gap-3 rounded-2xl border p-4 transition-all ${
-                      enSecuencia && idx === reveladosCount - 1
+                      idx === justRevealedIdx
                         ? "border-amber-500/50 bg-amber-500/10 shadow-md"
                         : "bg-background/60"
                     }`}
                   >
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 font-mono text-sm font-bold text-amber-500">
-                      #{idx + 1}
+                      #{g.posicion ?? idx + 1}
                     </span>
                     <EmpleadoAvatar
                       empresaCodigo={g.empresaCodigo}
@@ -683,10 +795,17 @@ export function EjecucionPanel({
                       nombre={g.nombre}
                       size="md"
                     />
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="truncate font-bold text-foreground">
-                        {g.nombre}
-                      </p>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-bold text-foreground">
+                          {g.nombre}
+                        </p>
+                        {g.esReemplazo && (
+                          <span className="shrink-0 rounded-md bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-600">
+                            Reemplazo
+                          </span>
+                        )}
+                      </div>
                       {cargo && (
                         <p className="truncate text-xs font-medium text-indigo-500">
                           {cargo}
@@ -705,6 +824,18 @@ export function EjecucionPanel({
                         <span className="font-mono">{g.codigo}</span>
                       </p>
                     </div>
+                    {g.id && !isSpinning && !reemplazando && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        title="No presente — sortear reemplazo"
+                        onClick={() => setReemplazoTarget(g)}
+                        className="shrink-0 text-muted-foreground hover:text-rose-500"
+                      >
+                        <UserX className="size-4" />
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -712,6 +843,48 @@ export function EjecucionPanel({
           </div>
         </div>
       )}
+
+      <AlertDialog
+        open={reemplazoTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReemplazoTarget(null);
+            setMotivoReemplazo("");
+          }
+        }}
+      >
+        <AlertDialogContent container={panelRef}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Ganador no presente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {reemplazoTarget?.nombre ?? "El ganador"} será marcado como no
+              presente y se sorteará un reemplazo elegible para el premio #
+              {reemplazoTarget?.posicion ?? ""} al instante.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="motivo-reemplazo"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Motivo (opcional)
+            </label>
+            <Input
+              id="motivo-reemplazo"
+              value={motivoReemplazo}
+              onChange={(e) => setMotivoReemplazo(e.target.value)}
+              placeholder="No presente"
+              maxLength={300}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void ejecutarReemplazo()}>
+              Reemplazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,7 +1,10 @@
+import { randomInt } from "node:crypto";
+
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/modules/auditoria/lib/audit";
 import {
+  candidatoCumpleCuota,
   elegiblesWhere,
   seleccionarCandidatosConCuotas,
 } from "@/modules/sorteos/services/sorteo.service";
@@ -154,10 +157,12 @@ export async function ejecutarSorteo(
       data: { ...base, estado: "COMPLETADA" },
     });
     await tx.sorteoGanador.createMany({
-      data: seleccionados.map((c) => ({
+      data: seleccionados.map((c, idx) => ({
         ejecucionId: ejecucion.id,
         eventoId: sorteo.eventoId,
         empleadoId: c.empleadoId,
+        posicion: idx + 1,
+        cuotaSnapshot: seleccion.cuotasAsignadas[idx] ?? undefined,
       })),
     });
     await tx.sorteo.update({
@@ -196,6 +201,230 @@ export async function ejecutarSorteo(
   return resultado;
 }
 
+export type ReemplazoResultado = {
+  ganadorAusenteId: string;
+  ganadorReemplazoId: string;
+  posicion: number;
+  reemplazo: {
+    empleadoId: string;
+    codigo: string;
+    nombre: string;
+    empresa: string;
+    empresaCodigo: string;
+    puesto: string | null;
+    departamento: string | null;
+  };
+};
+
+/**
+ * Marca un ganador como AUSENTE y sortea un reemplazo en la misma transacción.
+ * El reemplazo conserva `posicion` y, si el puesto cubría una cuota, solo se
+ * elige entre candidatos que cumplan esa cuota. Los empleados ya ganadores del
+ * evento (VALIDO o AUSENTE) quedan excluidos del pool.
+ */
+export async function reemplazarGanadorAusente(
+  eventoId: string,
+  sorteoId: string,
+  ganadorId: string,
+  motivo?: string | null,
+  actor?: string | null,
+): Promise<ReemplazoResultado> {
+  const sorteo = await sorteoRepository.findById(sorteoId);
+  if (!sorteo || sorteo.eventoId !== eventoId) {
+    throw new NotFoundError("Sorteo no encontrado");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${sorteo.eventoId}))`;
+
+    const ganador = await tx.sorteoGanador.findFirst({
+      where: {
+        id: ganadorId,
+        eventoId: sorteo.eventoId,
+        ejecucion: { sorteoId, estado: "COMPLETADA" },
+      },
+      include: {
+        participante: {
+          include: {
+            empleado: {
+              select: {
+                codigo: true,
+                nombres: true,
+                apellidos: true,
+                departamento: true,
+                clasificacion: true,
+                zona: true,
+                puesto: true,
+                empresa: {
+                  select: {
+                    codigo: true,
+                    clasificacion: true,
+                    ubicacion: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!ganador) {
+      throw new NotFoundError("Ganador no encontrado en este sorteo");
+    }
+    if (ganador.estado !== "VALIDO") {
+      throw new ConflictError(
+        "Este ganador ya fue marcado como no presente y reemplazado",
+      );
+    }
+
+    const previos = await tx.sorteoGanador.findMany({
+      where: { eventoId: sorteo.eventoId },
+      select: { empleadoId: true },
+    });
+    const where = elegiblesWhere(
+      sorteo,
+      previos.map((g) => g.empleadoId),
+    );
+    const candidatos = await tx.eventoParticipante.findMany({
+      where,
+      select: {
+        id: true,
+        empleadoId: true,
+        empleado: {
+          select: {
+            codigo: true,
+            nombres: true,
+            apellidos: true,
+            departamento: true,
+            clasificacion: true,
+            zona: true,
+            puesto: true,
+            empresa: {
+              select: {
+                codigo: true,
+                nombre: true,
+                clasificacion: true,
+                ubicacion: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Cuota del puesto: snapshot en BD o, para ganadores creados antes del
+    // snapshot, inferida si el empleado ausente cumple exactamente una cuota.
+    let cuota = (ganador.cuotaSnapshot ?? null) as {
+      entidad: "EMPLEADO" | "EMPRESA";
+      campo: string;
+      valor: string;
+    } | null;
+    if (!cuota) {
+      const empleadoGanador = ganador.participante.empleado;
+      const pseudoCandidato = {
+        id: "",
+        empleadoId: "",
+        empleado: {
+          codigo: empleadoGanador.codigo,
+          departamento: empleadoGanador.departamento,
+          clasificacion: empleadoGanador.clasificacion,
+          zona: empleadoGanador.zona,
+          puesto: empleadoGanador.puesto,
+          empresa: {
+            codigo: empleadoGanador.empresa.codigo,
+            clasificacion: empleadoGanador.empresa.clasificacion,
+            ubicacion: empleadoGanador.empresa.ubicacion,
+          },
+        },
+      };
+      const coinciden = sorteo.cuotas.filter(
+        (c) => c.activo && candidatoCumpleCuota(pseudoCandidato, c),
+      );
+      if (coinciden.length === 1) {
+        cuota = {
+          entidad: coinciden[0].entidad,
+          campo: coinciden[0].campo,
+          valor: coinciden[0].valor,
+        };
+      }
+    }
+
+    const pool = cuota
+      ? candidatos.filter((c) => candidatoCumpleCuota(c, cuota))
+      : candidatos;
+    if (pool.length === 0) {
+      throw new ConflictError(
+        cuota
+          ? `No hay candidatos elegibles que cumplan la cuota ${cuota.campo} = "${cuota.valor}" para el reemplazo`
+          : "No hay candidatos elegibles disponibles para el reemplazo",
+      );
+    }
+
+    const reemplazo = pool[randomInt(pool.length)];
+
+    const motivoFinal = motivo?.trim() || "No presente";
+    const [, nuevo] = await tx.$transaction([
+      tx.sorteoGanador.update({
+        where: { id: ganador.id },
+        data: {
+          estado: "AUSENTE",
+          motivoAusencia: motivoFinal,
+          reemplazadoAt: new Date(),
+          reemplazadoPor: actor ?? null,
+        },
+      }),
+      tx.sorteoGanador.create({
+        data: {
+          ejecucionId: ganador.ejecucionId,
+          eventoId: sorteo.eventoId,
+          empleadoId: reemplazo.empleadoId,
+          posicion: ganador.posicion,
+          cuotaSnapshot: ganador.cuotaSnapshot ?? undefined,
+          reemplazaAGanadorId: ganador.id,
+        },
+      }),
+    ]);
+
+    await registrarAuditoria(
+      {
+        eventoId: sorteo.eventoId,
+        entidad: "SorteoGanador",
+        entidadId: ganador.id,
+        accion: "REEMPLAZAR_GANADOR",
+        actor,
+        antes: {
+          empleadoId: ganador.empleadoId,
+          codigo: ganador.participante.empleado.codigo,
+          posicion: ganador.posicion,
+        },
+        despues: {
+          estado: "AUSENTE",
+          motivo: motivoFinal,
+          reemplazoEmpleadoId: reemplazo.empleadoId,
+          reemplazoCodigo: reemplazo.empleado.codigo,
+          reemplazoGanadorId: nuevo.id,
+        },
+      },
+      tx,
+    );
+
+    return {
+      ganadorAusenteId: ganador.id,
+      ganadorReemplazoId: nuevo.id,
+      posicion: nuevo.posicion,
+      reemplazo: {
+        empleadoId: reemplazo.empleadoId,
+        codigo: reemplazo.empleado.codigo,
+        nombre: `${reemplazo.empleado.nombres} ${reemplazo.empleado.apellidos}`,
+        empresa: reemplazo.empleado.empresa.nombre,
+        empresaCodigo: reemplazo.empleado.empresa.codigo,
+        puesto: reemplazo.empleado.puesto,
+        departamento: reemplazo.empleado.departamento,
+      },
+    };
+  });
+}
+
 export async function listEjecuciones(sorteoId: string) {
   const sorteo = await sorteoRepository.findById(sorteoId);
   if (!sorteo) throw new NotFoundError("Sorteo no encontrado");
@@ -204,6 +433,7 @@ export async function listEjecuciones(sorteoId: string) {
     orderBy: { ejecutadoAt: "desc" },
     include: {
       ganadores: {
+        orderBy: [{ posicion: "asc" }, { createdAt: "asc" }],
         include: {
           participante: {
             include: {
@@ -219,6 +449,17 @@ export async function listEjecuciones(sorteoId: string) {
               },
             },
           },
+          reemplazaA: {
+            include: {
+              participante: {
+                include: {
+                  empleado: {
+                    select: { codigo: true, nombres: true, apellidos: true },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -229,7 +470,7 @@ export async function listEjecuciones(sorteoId: string) {
 export async function listGanadoresEvento(eventoId: string) {
   return prisma.sorteoGanador.findMany({
     where: { eventoId },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { posicion: "asc" }],
     include: {
       ejecucion: {
         select: { ejecutadoAt: true, sorteo: { select: { id: true, nombre: true } } },
@@ -244,6 +485,28 @@ export async function listGanadoresEvento(eventoId: string) {
               puesto: true,
               departamento: true,
               empresa: { select: { codigo: true, nombre: true } },
+            },
+          },
+        },
+      },
+      reemplazaA: {
+        include: {
+          participante: {
+            include: {
+              empleado: {
+                select: { codigo: true, nombres: true, apellidos: true },
+              },
+            },
+          },
+        },
+      },
+      reemplazadoCon: {
+        include: {
+          participante: {
+            include: {
+              empleado: {
+                select: { codigo: true, nombres: true, apellidos: true },
+              },
             },
           },
         },

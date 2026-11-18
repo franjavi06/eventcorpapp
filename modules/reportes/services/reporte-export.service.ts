@@ -245,6 +245,7 @@ export async function buildEventoReporteExcel(
     "Clasificación",
     "Empresa",
     "Sorteo",
+    "Tipo",
     "Fecha Adjudicación",
   ]);
   ganHeader.font = { bold: true };
@@ -258,10 +259,42 @@ export async function buildEventoReporteExcel(
       g.clasificacion ?? "",
       g.empresa,
       g.sorteo,
+      g.esReemplazo ? "Reemplazo" : "Titular",
       formatDateTime(g.creadoAt),
     ]);
   }
   styleSheetColumns(ganadoresSheet, 24);
+
+  // Hoja extra: Reemplazos (solo cuando hay ausentes reemplazados)
+  if (r.reemplazos.length > 0) {
+    const reemplazosSheet = wb.addWorksheet("Reemplazos");
+    const repHeader = reemplazosSheet.addRow([
+      "Empleado ausente",
+      "Código",
+      "Empresa",
+      "Sorteo",
+      "Motivo",
+      "Fecha",
+      "Registrado por",
+      "Ganador sustituto",
+      "Código sustituto",
+    ]);
+    repHeader.font = { bold: true };
+    for (const rep of r.reemplazos) {
+      reemplazosSheet.addRow([
+        rep.empleado,
+        rep.codigoEmpleado,
+        rep.empresa,
+        rep.sorteo,
+        rep.motivo ?? "No presente",
+        rep.reemplazadoAt ? formatDateTime(rep.reemplazadoAt) : "",
+        rep.reemplazadoPor ?? "",
+        rep.sustituto ?? "",
+        rep.codigoSustituto ?? "",
+      ]);
+    }
+    styleSheetColumns(reemplazosSheet, 24);
+  }
 
   // Hoja 4: Participantes y Asistencia
   const partSheet = wb.addWorksheet("Participantes");
@@ -412,7 +445,7 @@ export async function buildEventoReportePdf(
       y,
       ["Empleado", "Codigo", "Puesto", "Departamento", "Empresa", "Sorteo"],
       r.ganadores.map((g) => [
-        g.empleado,
+        g.esReemplazo ? `${g.empleado} (Reemplazo)` : g.empleado,
         g.codigoEmpleado,
         g.puesto ?? "-",
         g.departamento ?? "-",
@@ -421,6 +454,35 @@ export async function buildEventoReportePdf(
       ]),
     ),
   );
+  y = lastTableY(doc, y) + 12;
+
+  if (r.reemplazos.length > 0) {
+    sectionTitle(doc, "Reemplazos por ausencia", y);
+    autoTable(
+      doc,
+      tableOptions(
+        y,
+        [
+          "Ganador ausente",
+          "Codigo",
+          "Sorteo",
+          "Motivo",
+          "Registrado por",
+          "Sustituto",
+        ],
+        r.reemplazos.map((rep) => [
+          rep.empleado,
+          rep.codigoEmpleado,
+          rep.sorteo,
+          rep.motivo ?? "No presente",
+          rep.reemplazadoPor ?? "-",
+          rep.sustituto
+            ? `${rep.sustituto} (${rep.codigoSustituto})`
+            : "-",
+        ]),
+      ),
+    );
+  }
 
   drawPageFooters(doc, `Reporte ${r.evento.codigo}`);
   return {

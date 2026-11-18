@@ -483,6 +483,8 @@ export async function listGanadorEmpleadoIds(eventoId: string) {
   return rows.map((r) => r.empleadoId);
 }
 
+export type CuotaAsignada = Pick<SorteoCuota, "entidad" | "campo" | "valor">;
+
 export type CandidatoParaCuota = {
   id: string;
   empleadoId: string;
@@ -540,7 +542,9 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
   candidatos: T[],
   cantidadTotal: number,
   cuotasActivas: Pick<SorteoCuota, "entidad" | "campo" | "valor" | "cantidad">[],
-): { ok: true; seleccionados: T[] } | { ok: false; error: string } {
+):
+  | { ok: true; seleccionados: T[]; cuotasAsignadas: (CuotaAsignada | null)[] }
+  | { ok: false; error: string } {
   if (cuotasActivas.length === 0) {
     if (candidatos.length < cantidadTotal) {
       return {
@@ -549,7 +553,12 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
       };
     }
     const copia = shuffleInPlace([...candidatos]);
-    return { ok: true, seleccionados: copia.slice(0, cantidadTotal) };
+    const seleccionados = copia.slice(0, cantidadTotal);
+    return {
+      ok: true,
+      seleccionados,
+      cuotasAsignadas: seleccionados.map(() => null),
+    };
   }
 
   const sumaCuotas = cuotasActivas.reduce((acc, c) => acc + c.cantidad, 0);
@@ -562,6 +571,7 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
 
   const usados = new Set<string>();
   const seleccionados: T[] = [];
+  const cuotasAsignadas: (CuotaAsignada | null)[] = [];
 
   for (const cuota of cuotasActivas) {
     const def = getCampoDef(cuota.entidad, cuota.campo);
@@ -580,6 +590,11 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
     for (const c of elegidosGrupo) {
       usados.add(c.empleadoId);
       seleccionados.push(c);
+      cuotasAsignadas.push({
+        entidad: cuota.entidad,
+        campo: cuota.campo,
+        valor: cuota.valor,
+      });
     }
   }
 
@@ -593,10 +608,14 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
       };
     }
     const barajadosResto = shuffleInPlace([...resto]);
-    seleccionados.push(...barajadosResto.slice(0, faltantes));
+    const elegidosResto = barajadosResto.slice(0, faltantes);
+    for (const c of elegidosResto) {
+      seleccionados.push(c);
+      cuotasAsignadas.push(null);
+    }
   }
 
-  return { ok: true, seleccionados };
+  return { ok: true, seleccionados, cuotasAsignadas };
 }
 
 export async function listarElegibles(sorteoId: string, take = 50) {

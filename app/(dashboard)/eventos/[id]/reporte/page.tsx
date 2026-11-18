@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -206,7 +207,14 @@ async function ReporteContent({
             <TableBody>
               {r.ganadores.map((g) => (
                 <TableRow key={g.id}>
-                  <TableCell className="font-medium">{g.empleado}</TableCell>
+                  <TableCell className="font-medium">
+                    {g.empleado}
+                    {g.esReemplazo && (
+                      <Badge variant="outline" className="ml-2">
+                        Reemplazo
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{g.codigoEmpleado}</TableCell>
                   <TableCell>{g.puesto ?? "—"}</TableCell>
                   <TableCell>{g.departamento ?? "—"}</TableCell>
@@ -228,6 +236,49 @@ async function ReporteContent({
           </Table>
         </CardContent>
       </Card>
+
+      {r.reemplazos.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Reemplazos ({r.reemplazos.length})</CardTitle>
+            <CardDescription>
+              Ganadores marcados como no presentes y su sustituto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ganador ausente</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Sorteo</TableHead>
+                  <TableHead>Motivo</TableHead>
+                  <TableHead>Registrado por</TableHead>
+                  <TableHead>Sustituto</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {r.reemplazos.map((rep) => (
+                  <TableRow key={rep.id}>
+                    <TableCell className="font-medium">{rep.empleado}</TableCell>
+                    <TableCell>{rep.codigoEmpleado}</TableCell>
+                    <TableCell>{rep.empresa}</TableCell>
+                    <TableCell>{rep.sorteo}</TableCell>
+                    <TableCell>{rep.motivo ?? "No presente"}</TableCell>
+                    <TableCell>{rep.reemplazadoPor ?? "—"}</TableCell>
+                    <TableCell>
+                      {rep.sustituto
+                        ? `${rep.sustituto} (${rep.codigoSustituto})`
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

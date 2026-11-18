@@ -89,7 +89,9 @@ async function DashboardOverview() {
 
   const [ultimosGanadores, ultimasAsistencias] = await Promise.all([
     prisma.sorteoGanador.findMany({
-      where: eventoDestacado ? { eventoId: eventoDestacado.id } : undefined,
+      where: eventoDestacado
+        ? { eventoId: eventoDestacado.id, estado: "VALIDO" }
+        : { estado: "VALIDO" },
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {

@@ -44,7 +44,7 @@ export async function getReporteEvento(eventoId: string) {
     }),
     prisma.sorteoGanador.findMany({
       where: { eventoId },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { posicion: "asc" }],
       include: {
         participante: {
           include: {
@@ -63,6 +63,17 @@ export async function getReporteEvento(eventoId: string) {
           },
         },
         ejecucion: { include: { sorteo: { select: { nombre: true } } } },
+        reemplazadoCon: {
+          include: {
+            participante: {
+              include: {
+                empleado: {
+                  select: { codigo: true, nombres: true, apellidos: true },
+                },
+              },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -101,7 +112,7 @@ export async function getReporteEvento(eventoId: string) {
       asistencias,
       elegibles,
       sorteos: sorteos.length,
-      ganadores: ganadores.length,
+      ganadores: ganadores.filter((g) => g.estado === "VALIDO").length,
     },
     empresas,
     sorteos: sorteos.map((s) => ({
@@ -114,18 +125,39 @@ export async function getReporteEvento(eventoId: string) {
       ejecutadoAt: s.ejecuciones[0]?.ejecutadoAt ?? null,
       ejecutadoPor: s.ejecuciones[0]?.ejecutadoPor ?? null,
     })),
-    ganadores: ganadores.map((g) => ({
-      id: g.id,
-      empleado: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
-      codigoEmpleado: g.participante.empleado.codigo,
-      puesto: g.participante.empleado.puesto,
-      departamento: g.participante.empleado.departamento,
-      zona: g.participante.empleado.zona,
-      clasificacion: g.participante.empleado.clasificacion,
-      empresa: g.participante.empleado.empresa.nombre,
-      sorteo: g.ejecucion.sorteo.nombre,
-      creadoAt: g.createdAt,
-    })),
+    ganadores: ganadores
+      .filter((g) => g.estado === "VALIDO")
+      .map((g) => ({
+        id: g.id,
+        empleado: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
+        codigoEmpleado: g.participante.empleado.codigo,
+        puesto: g.participante.empleado.puesto,
+        departamento: g.participante.empleado.departamento,
+        zona: g.participante.empleado.zona,
+        clasificacion: g.participante.empleado.clasificacion,
+        empresa: g.participante.empleado.empresa.nombre,
+        sorteo: g.ejecucion.sorteo.nombre,
+        esReemplazo: g.reemplazaAGanadorId !== null,
+        creadoAt: g.createdAt,
+      })),
+    reemplazos: ganadores
+      .filter((g) => g.estado === "AUSENTE")
+      .map((g) => ({
+        id: g.id,
+        empleado: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
+        codigoEmpleado: g.participante.empleado.codigo,
+        empresa: g.participante.empleado.empresa.nombre,
+        sorteo: g.ejecucion.sorteo.nombre,
+        motivo: g.motivoAusencia,
+        reemplazadoAt: g.reemplazadoAt,
+        reemplazadoPor: g.reemplazadoPor,
+        sustituto: g.reemplazadoCon
+          ? `${g.reemplazadoCon.participante.empleado.nombres} ${g.reemplazadoCon.participante.empleado.apellidos}`
+          : null,
+        codigoSustituto: g.reemplazadoCon
+          ? g.reemplazadoCon.participante.empleado.codigo
+          : null,
+      })),
   };
 }
 
@@ -144,7 +176,7 @@ export async function getReporteGlobal() {
     prisma.empleado.count({ where: { activo: true } }),
     prisma.evento.findMany({ select: { estado: true } }),
     prisma.sorteo.count({ where: { estado: "FINALIZADO" } }),
-    prisma.sorteoGanador.count(),
+    prisma.sorteoGanador.count({ where: { estado: "VALIDO" } }),
     prisma.evento.findMany({
       orderBy: { fechaInicio: "desc" },
       take: 20,
@@ -168,7 +200,9 @@ export async function getReporteGlobal() {
             where: { eventoId: e.id, asistencia: { isNot: null } },
           }),
           prisma.sorteo.count({ where: { eventoId: e.id } }),
-          prisma.sorteoGanador.count({ where: { eventoId: e.id } }),
+          prisma.sorteoGanador.count({
+            where: { eventoId: e.id, estado: "VALIDO" },
+          }),
         ]);
       return {
         eventoId: e.id,

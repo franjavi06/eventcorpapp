@@ -145,6 +145,19 @@ export const cuotaIdParamsSchema = sorteoIdParamsSchema.extend({
   cuotaId: uuidSchema,
 });
 
+export const ganadorIdParamsSchema = sorteoIdParamsSchema.extend({
+  ganadorId: uuidSchema,
+});
+
+export const reemplazoGanadorSchema = z.object({
+  motivo: z
+    .string()
+    .trim()
+    .max(300, "El motivo no puede exceder 300 caracteres")
+    .nullish()
+    .transform((v) => v || null),
+});
+
 export const sorteoCargaMasivaItemSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(150),
   cantidadGanadores: z.coerce

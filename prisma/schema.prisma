@@ -245,18 +245,33 @@ model SorteoEjecucion {
 }
 
 model SorteoGanador {
-  id          String   @id @default(uuid()) @db.Uuid
-  ejecucionId String   @map("ejecucion_id") @db.Uuid
-  eventoId    String   @map("evento_id") @db.Uuid
-  empleadoId  String   @map("empleado_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                  String             @id @default(uuid()) @db.Uuid
+  ejecucionId         String             @map("ejecucion_id") @db.Uuid
+  eventoId            String             @map("evento_id") @db.Uuid
+  empleadoId          String             @map("empleado_id") @db.Uuid
+  posicion            Int                @default(1)
+  estado              SorteoGanadorEstado @default(VALIDO)
+  motivoAusencia      String?            @map("motivo_ausencia") @db.VarChar(300)
+  reemplazadoAt       DateTime?          @map("reemplazado_at")
+  reemplazadoPor      String?            @map("reemplazado_por") @db.VarChar(150)
+  reemplazaAGanadorId String?            @unique @map("reemplaza_a_ganador_id") @db.Uuid
+  cuotaSnapshot       Json?              @map("cuota_snapshot")
+  createdAt           DateTime           @default(now()) @map("created_at")
 
   ejecucion    SorteoEjecucion    @relation(fields: [ejecucionId], references: [id], onDelete: Restrict)
   participante EventoParticipante @relation(fields: [eventoId, empleadoId], references: [eventoId, empleadoId], onDelete: Restrict)
+  reemplazaA   SorteoGanador?     @relation("ReemplazoGanador", fields: [reemplazaAGanadorId], references: [id], onDelete: Restrict)
+  reemplazadoCon SorteoGanador?   @relation("ReemplazoGanador")
 
   @@unique([eventoId, empleadoId])
   @@index([ejecucionId])
+  @@index([eventoId, estado])
   @@map("sorteo_ganadores")
+}
+
+enum SorteoGanadorEstado {
+  VALIDO
+  AUSENTE
 }
 
 model Auditoria {
