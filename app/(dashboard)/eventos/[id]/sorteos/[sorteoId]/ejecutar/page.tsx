@@ -91,6 +91,7 @@ async function EjecutarSorteoContent({
       </div>
 
       <EjecucionPanel
+        key={sorteo.id}
         eventoId={sorteo.eventoId}
         sorteoId={sorteo.id}
         nombre={sorteo.nombre}

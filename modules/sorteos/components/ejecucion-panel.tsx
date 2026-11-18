@@ -30,6 +30,7 @@ import {
 import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
 import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Button } from "@/components/ui/button";
+import { useSorteoFullscreen } from "@/modules/sorteos/components/sorteo-fullscreen-container";
 import type { SorteosNavegacion } from "@/modules/sorteos/services/sorteo.service";
 
 export type GanadorInfo = {
@@ -110,7 +111,9 @@ export function EjecucionPanel({
 }: EjecucionPanelProps) {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreen = useSorteoFullscreen();
+  const [localFullscreen, setLocalFullscreen] = useState(false);
+  const isFullscreen = fullscreen?.isFullscreen ?? localFullscreen;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
   const [rollingName, setRollingName] = useState<string | null>(null);
@@ -123,7 +126,7 @@ export function EjecucionPanel({
 
   useEffect(() => {
     function onFullscreenChange() {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      setLocalFullscreen(Boolean(document.fullscreenElement));
     }
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => {
@@ -131,20 +134,39 @@ export function EjecucionPanel({
     };
   }, []);
 
+  // Al desmontarse (cambio de sorteo o salida de la ruleta), si la navegación
+  // no sigue en una pantalla /ejecutar, salir de pantalla completa.
+  useEffect(() => {
+    return () => {
+      setTimeout(() => {
+        if (
+          document.fullscreenElement &&
+          !window.location.pathname.endsWith("/ejecutar")
+        ) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }, 0);
+    };
+  }, []);
+
   async function toggleFullscreen() {
+    if (fullscreen) {
+      await fullscreen.toggleFullscreen();
+      return;
+    }
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-        setIsFullscreen(false);
+        setLocalFullscreen(false);
       } else if (panelRef.current?.requestFullscreen) {
         await panelRef.current.requestFullscreen();
-        setIsFullscreen(true);
+        setLocalFullscreen(true);
       } else {
-        setIsFullscreen((v) => !v);
+        setLocalFullscreen((v) => !v);
       }
     } catch {
       // Fallback por si el navegador bloquea la API de pantalla completa
-      setIsFullscreen((v) => !v);
+      setLocalFullscreen((v) => !v);
     }
   }
 
