@@ -23,6 +23,7 @@ import {
 import { formatDateTime } from "@/lib/format";
 import { firstValues } from "@/lib/params";
 import { idParamSchema } from "@/lib/validations/common";
+import { AuditoriaDetalleDialog } from "@/modules/auditoria/components/auditoria-detalle-dialog";
 import { listAuditoriaEvento } from "@/modules/auditoria/services/auditoria.service";
 import { getEvento } from "@/modules/eventos/services/evento.service";
 
@@ -91,9 +92,12 @@ async function AuditoriaContent({
                   <TableCell className="font-medium">{a.entidad}</TableCell>
                   <TableCell>{a.actor ?? "—"}</TableCell>
                   <TableCell className="max-w-md">
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {detalleJson(a.despues ?? a.antes)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="block min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                        {detalleJson(a.despues ?? a.antes)}
+                      </span>
+                      <AuditoriaDetalleDialog registro={a} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
