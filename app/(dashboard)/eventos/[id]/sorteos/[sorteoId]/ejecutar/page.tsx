@@ -12,6 +12,7 @@ import { listEjecuciones } from "@/modules/sorteos/services/ejecucion.service";
 import {
   getSorteo,
   getSorteosVecinos,
+  getValoresSugeridosEvento,
 } from "@/modules/sorteos/services/sorteo.service";
 
 export const metadata = { title: "Ejecutar sorteo" };
@@ -28,25 +29,30 @@ async function EjecutarSorteoContent({
   const sorteo = await getSorteo(parsed.data.sorteoId).catch(() => null);
   if (!sorteo || sorteo.eventoId !== parsed.data.id) notFound();
 
-  const [ejecuciones, navegacion] = await Promise.all([
+  const [ejecuciones, navegacion, sugerencias] = await Promise.all([
     listEjecuciones(sorteo.id),
     getSorteosVecinos(sorteo.eventoId, sorteo.id),
+    getValoresSugeridosEvento(sorteo.eventoId),
   ]);
-  const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
-  const ganadoresIniciales =
-    completada?.ganadores
-      .filter((g) => g.estado === "VALIDO")
-      .map((g) => ({
-        id: g.id,
-        posicion: g.posicion,
-        esReemplazo: g.reemplazaAGanadorId !== null,
-        codigo: g.participante.empleado.codigo,
-        nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
-        empresa: g.participante.empleado.empresa.nombre,
-        empresaCodigo: g.participante.empleado.empresa.codigo,
-        puesto: g.participante.empleado.puesto,
-        departamento: g.participante.empleado.departamento,
-      })) ?? [];
+  const ganadoresIniciales = ejecuciones
+    .filter((e) => e.estado === "COMPLETADA")
+    .flatMap((e) =>
+      e.ganadores
+        .filter((g) => g.estado === "VALIDO")
+        .map((g) => ({
+          id: g.id,
+          posicion: g.posicion,
+          esReemplazo: g.reemplazaAGanadorId !== null,
+          esAdicional: e.esAdicional,
+          codigo: g.participante.empleado.codigo,
+          nombre: `${g.participante.empleado.nombres} ${g.participante.empleado.apellidos}`,
+          empresa: g.participante.empleado.empresa.nombre,
+          empresaCodigo: g.participante.empleado.empresa.codigo,
+          puesto: g.participante.empleado.puesto,
+          departamento: g.participante.empleado.departamento,
+        })),
+    )
+    .sort((a, b) => a.posicion - b.posicion);
 
   const empresasParticipantes = sorteo.evento.empresas
     .map((ee) => ee.empresa)
@@ -108,6 +114,7 @@ async function EjecutarSorteoContent({
         ganadoresIniciales={ganadoresIniciales}
         empresasParticipantes={empresasParticipantes}
         navegacion={navegacion}
+        cuotaSugerencias={sugerencias}
       />
     </div>
   );

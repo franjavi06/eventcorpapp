@@ -32,7 +32,7 @@ export type CuotaRow = {
 const selectCls =
   "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-const CAMPOS_CUOTA: {
+export const CAMPOS_CUOTA: {
   key: string;
   entidad: ReglaEntidad;
   campo: string;

@@ -209,6 +209,14 @@ async function ReporteContent({
                 <TableRow key={g.id}>
                   <TableCell className="font-medium">
                     {g.empleado}
+                    {g.esAdicional && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 border-emerald-500/40 text-emerald-600"
+                      >
+                        Adicional
+                      </Badge>
+                    )}
                     {g.esReemplazo && (
                       <Badge variant="outline" className="ml-2">
                         Reemplazo

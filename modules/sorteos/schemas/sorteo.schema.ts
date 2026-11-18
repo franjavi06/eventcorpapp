@@ -158,6 +158,38 @@ export const reemplazoGanadorSchema = z.object({
     .transform((v) => v || null),
 });
 
+const cuotaAdicionalSchema = z
+  .object({
+    entidad: reglaEntidadSchema.default("EMPLEADO"),
+    campo: z.string().trim().min(1).max(50),
+    valor: z.string().trim().min(1, "El valor es obligatorio").max(300),
+  })
+  .superRefine((cuota, ctx) => {
+    const def = getCampoDef(cuota.entidad, cuota.campo);
+    if (!def || def.tipo !== "texto") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["campo"],
+        message: `El campo "${cuota.campo}" no está permitido para cuotas de ${cuota.entidad}`,
+      });
+    }
+  });
+
+export const ejecutarGanadoresAdicionalesSchema = z.object({
+  cantidad: z.coerce
+    .number()
+    .int("La cantidad debe ser un entero")
+    .min(1, "Mínimo 1 ganador adicional")
+    .max(100, "Máximo 100 ganadores adicionales")
+    .default(1),
+  motivo: optionalText(300),
+  cuota: cuotaAdicionalSchema.nullish().transform((v) => v ?? null),
+});
+
+export type EjecutarGanadoresAdicionalesInput = z.infer<
+  typeof ejecutarGanadoresAdicionalesSchema
+>;
+
 export const sorteoCargaMasivaItemSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(150),
   cantidadGanadores: z.coerce

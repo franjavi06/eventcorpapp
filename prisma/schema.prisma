@@ -234,6 +234,8 @@ model SorteoEjecucion {
   error              String?               @db.VarChar(500)
   ejecutadoAt        DateTime              @default(now()) @map("ejecutado_at")
   ejecutadoPor       String?               @map("ejecutado_por") @db.VarChar(150)
+  esAdicional        Boolean               @default(false) @map("es_adicional")
+  motivo             String?               @db.VarChar(300)
 
   sorteo    Sorteo          @relation(fields: [sorteoId], references: [id], onDelete: Cascade)
   evento    Evento          @relation(fields: [eventoId], references: [id])

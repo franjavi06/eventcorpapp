@@ -259,7 +259,9 @@ export async function buildEventoReporteExcel(
       g.clasificacion ?? "",
       g.empresa,
       g.sorteo,
-      g.esReemplazo ? "Reemplazo" : "Titular",
+      [g.esAdicional ? "Adicional" : "Titular", g.esReemplazo && "Reemplazo"]
+        .filter(Boolean)
+        .join(" / "),
       formatDateTime(g.creadoAt),
     ]);
   }
@@ -444,14 +446,20 @@ export async function buildEventoReportePdf(
     tableOptions(
       y,
       ["Empleado", "Codigo", "Puesto", "Departamento", "Empresa", "Sorteo"],
-      r.ganadores.map((g) => [
-        g.esReemplazo ? `${g.empleado} (Reemplazo)` : g.empleado,
-        g.codigoEmpleado,
-        g.puesto ?? "-",
-        g.departamento ?? "-",
-        g.empresa,
-        g.sorteo,
-      ]),
+      r.ganadores.map((g) => {
+        const tags = [
+          g.esAdicional && "Adicional",
+          g.esReemplazo && "Reemplazo",
+        ].filter(Boolean);
+        return [
+          tags.length ? `${g.empleado} (${tags.join(", ")})` : g.empleado,
+          g.codigoEmpleado,
+          g.puesto ?? "-",
+          g.departamento ?? "-",
+          g.empresa,
+          g.sorteo,
+        ];
+      }),
     ),
   );
   y = lastTableY(doc, y) + 12;

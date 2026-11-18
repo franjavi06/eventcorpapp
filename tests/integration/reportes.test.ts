@@ -19,6 +19,7 @@ import {
 } from "@/modules/reportes/services/reporte-export.service";
 import { getReporteEvento } from "@/modules/reportes/services/reporte.service";
 import {
+  agregarGanadoresAdicionales,
   ejecutarSorteo,
   listEjecuciones,
   reemplazarGanadorAusente,
@@ -168,6 +169,26 @@ describe("exportación de reportes", () => {
     expect(wb.worksheets.map((w) => w.name)).toContain("Reemplazos");
     expect(wb.getWorksheet("Reemplazos")?.rowCount).toBe(2);
     const ganadores = wb.getWorksheet("Ganadores");
-    expect(ganadores?.getRow(2).getCell(9).value).toBe("Reemplazo");
+    expect(ganadores?.getRow(2).getCell(9).value).toBe("Titular / Reemplazo");
+  });
+
+  it("marca los ganadores adicionales en el reporte y el Excel", async () => {
+    const { evento, sorteo } = await setupConGanador();
+    await agregarGanadoresAdicionales(evento.id, sorteo.id, {
+      cantidad: 1,
+      motivo: "Premio extra",
+      cuota: null,
+    });
+
+    const reporte = await getReporteEvento(evento.id);
+    expect(reporte.totales.ganadores).toBe(2);
+    expect(reporte.ganadores.filter((g) => g.esAdicional)).toHaveLength(1);
+
+    const { buffer } = await buildEventoReporteExcel(evento.id);
+    const wb = await loadWorkbook(buffer);
+    const ganadores = wb.getWorksheet("Ganadores");
+    const tipos = [2, 3].map((r) => ganadores?.getRow(r).getCell(9).value);
+    expect(tipos).toContain("Adicional");
+    expect(tipos).toContain("Titular");
   });
 });

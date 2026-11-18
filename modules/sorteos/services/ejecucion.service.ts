@@ -244,6 +244,7 @@ export async function reemplazarGanadorAusente(
         ejecucion: { sorteoId, estado: "COMPLETADA" },
       },
       include: {
+        ejecucion: { select: { esAdicional: true } },
         participante: {
           include: {
             empleado: {
@@ -314,12 +315,14 @@ export async function reemplazarGanadorAusente(
 
     // Cuota del puesto: snapshot en BD o, para ganadores creados antes del
     // snapshot, inferida si el empleado ausente cumple exactamente una cuota.
+    // Los ganadores de ejecuciones adicionales libres no deben heredar las
+    // cuotas originales del sorteo por ese fallback.
     let cuota = (ganador.cuotaSnapshot ?? null) as {
       entidad: "EMPLEADO" | "EMPRESA";
       campo: string;
       valor: string;
     } | null;
-    if (!cuota) {
+    if (!cuota && !ganador.ejecucion.esAdicional) {
       const empleadoGanador = ganador.participante.empleado;
       const pseudoCandidato = {
         id: "",
@@ -423,6 +426,238 @@ export async function reemplazarGanadorAusente(
       },
     };
   });
+}
+
+export type AgregarAdicionalesInput = {
+  cantidad: number;
+  motivo: string | null;
+  cuota: {
+    entidad: "EMPLEADO" | "EMPRESA";
+    campo: string;
+    valor: string;
+  } | null;
+};
+
+export type AdicionalesResultado = {
+  ejecucionId: string;
+  posicionBase: number;
+  ganadores: {
+    id: string;
+    posicion: number;
+    empleadoId: string;
+    codigo: string;
+    nombre: string;
+    empresa: string;
+    empresaCodigo: string;
+    puesto: string | null;
+    departamento: string | null;
+  }[];
+};
+
+const candidatoSelect = {
+  id: true,
+  empleadoId: true,
+  empleado: {
+    select: {
+      codigo: true,
+      nombres: true,
+      apellidos: true,
+      departamento: true,
+      clasificacion: true,
+      zona: true,
+      puesto: true,
+      empresa: {
+        select: {
+          codigo: true,
+          nombre: true,
+          clasificacion: true,
+          ubicacion: true,
+        },
+      },
+    },
+  },
+} as const;
+
+/**
+ * Sortea ganadores adicionales sobre un sorteo FINALIZADO sin alterar su
+ * configuración ni el acta de la ejecución inicial. Crea una nueva
+ * SorteoEjecucion (esAdicional) con posiciones consecutivas, aplicando
+ * asistencia obligatoria y reglas activas; las cuotas del sorteo no se
+ * vuelven a aplicar salvo que el operador indique una cuota específica.
+ */
+export async function agregarGanadoresAdicionales(
+  eventoId: string,
+  sorteoId: string,
+  input: AgregarAdicionalesInput,
+  actor?: string | null,
+): Promise<AdicionalesResultado> {
+  const sorteo = await sorteoRepository.findById(sorteoId);
+  if (!sorteo || sorteo.eventoId !== eventoId) {
+    throw new NotFoundError("Sorteo no encontrado");
+  }
+  if (sorteo.estado !== "FINALIZADO") {
+    throw new ValidationError(
+      "Solo se pueden agregar ganadores a un sorteo FINALIZADO",
+    );
+  }
+
+  const resultado = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventoId}))`;
+
+    const completada = await tx.sorteoEjecucion.findFirst({
+      where: { sorteoId, estado: "COMPLETADA" },
+      select: { id: true },
+    });
+    if (!completada) {
+      throw new ConflictError(
+        "El sorteo aún no tiene una ejecución completada",
+      );
+    }
+
+    const maxPos = await tx.sorteoGanador.aggregate({
+      where: { ejecucion: { sorteoId } },
+      _max: { posicion: true },
+    });
+    const posicionBase = maxPos._max.posicion ?? 0;
+
+    const previos = await tx.sorteoGanador.findMany({
+      where: { eventoId },
+      select: { empleadoId: true },
+    });
+    const where = elegiblesWhere(
+      sorteo,
+      previos.map((g) => g.empleadoId),
+    );
+    const candidatos = await tx.eventoParticipante.findMany({
+      where,
+      select: candidatoSelect,
+    });
+
+    const reglasActivas = sorteo.reglas.filter((r) => r.activo);
+    const cuotasAplicadas = input.cuota
+      ? [{ ...input.cuota, cantidad: input.cantidad, orden: 0 }]
+      : [];
+    const reglasSnapshot = [
+      ...reglasActivas.map((r) => ({
+        tipo: "REGLA" as const,
+        entidad: r.entidad,
+        campo: r.campo,
+        operador: r.operador,
+        valor: r.valor,
+        orden: r.orden,
+      })),
+      ...cuotasAplicadas.map((c) => ({
+        tipo: "CUOTA" as const,
+        entidad: c.entidad,
+        campo: c.campo,
+        valor: c.valor,
+        cantidad: c.cantidad,
+        orden: c.orden,
+      })),
+    ];
+    const base = {
+      sorteoId,
+      eventoId,
+      cantidadSolicitada: input.cantidad,
+      totalCandidatos: candidatos.length,
+      reglasSnapshot,
+      candidatosSnapshot: candidatos.map((c) => c.id),
+      ejecutadoPor: actor ?? null,
+      esAdicional: true,
+      motivo: input.motivo,
+    };
+
+    const seleccion = seleccionarCandidatosConCuotas(
+      candidatos,
+      input.cantidad,
+      cuotasAplicadas,
+    );
+    if (!seleccion.ok) {
+      const fallida = await tx.sorteoEjecucion.create({
+        data: { ...base, estado: "FALLIDA", error: seleccion.error },
+      });
+      await registrarAuditoria(
+        {
+          eventoId,
+          entidad: "SorteoEjecucion",
+          entidadId: fallida.id,
+          accion: "EJECUCION_ADICIONAL_FALLIDA",
+          actor,
+          despues: {
+            sorteoId,
+            error: seleccion.error,
+            cantidadSolicitada: input.cantidad,
+          },
+        },
+        tx,
+      );
+      return {
+        ok: false as const,
+        ejecucionId: fallida.id,
+        error: seleccion.error,
+      };
+    }
+
+    const ejecucion = await tx.sorteoEjecucion.create({
+      data: { ...base, estado: "COMPLETADA" },
+    });
+
+    const ganadores: AdicionalesResultado["ganadores"] = [];
+    for (const [idx, c] of seleccion.seleccionados.entries()) {
+      const nuevo = await tx.sorteoGanador.create({
+        data: {
+          ejecucionId: ejecucion.id,
+          eventoId,
+          empleadoId: c.empleadoId,
+          posicion: posicionBase + idx + 1,
+          cuotaSnapshot: seleccion.cuotasAsignadas[idx] ?? undefined,
+        },
+      });
+      ganadores.push({
+        id: nuevo.id,
+        posicion: nuevo.posicion,
+        empleadoId: c.empleadoId,
+        codigo: c.empleado.codigo,
+        nombre: `${c.empleado.nombres} ${c.empleado.apellidos}`,
+        empresa: c.empleado.empresa.nombre ?? "",
+        empresaCodigo: c.empleado.empresa.codigo,
+        puesto: c.empleado.puesto,
+        departamento: c.empleado.departamento,
+      });
+    }
+
+    await registrarAuditoria(
+      {
+        eventoId,
+        entidad: "SorteoEjecucion",
+        entidadId: ejecucion.id,
+        accion: "AGREGAR_GANADORES_ADICIONALES",
+        actor,
+        despues: {
+          sorteoId,
+          cantidad: input.cantidad,
+          posicionBase,
+          cuota: input.cuota,
+          ganadores: ganadores.map((g) => g.empleadoId),
+        },
+      },
+      tx,
+    );
+
+    return {
+      ok: true as const,
+      ejecucionId: ejecucion.id,
+      posicionBase,
+      ganadores,
+    };
+  });
+
+  if (!resultado.ok) {
+    throw new ConflictError(resultado.error, {
+      ejecucionId: resultado.ejecucionId,
+    });
+  }
+  return resultado;
 }
 
 export async function listEjecuciones(sorteoId: string) {

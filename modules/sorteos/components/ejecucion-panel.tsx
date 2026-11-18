@@ -13,6 +13,7 @@ import {
   Sparkles,
   Ticket,
   Trophy,
+  UserPlus,
   UserX,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,12 +34,17 @@ import { EmpresaLogo } from "@/components/shared/empresa-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSorteoFullscreen } from "@/modules/sorteos/components/sorteo-fullscreen-container";
-import type { SorteosNavegacion } from "@/modules/sorteos/services/sorteo.service";
+import { CAMPOS_CUOTA } from "@/modules/sorteos/components/cuota-builder";
+import type {
+  SorteosNavegacion,
+  ValoresSugeridosEvento,
+} from "@/modules/sorteos/services/sorteo.service";
 
 export type GanadorInfo = {
   id?: string;
   posicion?: number;
   esReemplazo?: boolean;
+  esAdicional?: boolean;
   codigo: string;
   nombre: string;
   empresa: string;
@@ -65,6 +71,7 @@ type EjecucionPanelProps = {
   ganadoresIniciales?: GanadorInfo[];
   empresasParticipantes?: EmpresaParticipanteInfo[];
   navegacion?: SorteosNavegacion;
+  cuotaSugerencias?: ValoresSugeridosEvento;
 };
 
 type ElegibleItem = {
@@ -78,6 +85,7 @@ type ElegibleItem = {
 
 type EjecucionItem = {
   estado: string;
+  esAdicional?: boolean;
   ganadores: {
     id: string;
     posicion: number;
@@ -109,6 +117,20 @@ type ReemplazoApiData = {
   };
 };
 
+type AdicionalesApiData = {
+  ejecucionId: string;
+  ganadores: {
+    id: string;
+    posicion: number;
+    codigo: string;
+    nombre: string;
+    empresa: string;
+    empresaCodigo: string;
+    puesto: string | null;
+    departamento: string | null;
+  }[];
+};
+
 const PAUSA_CELEBRACION_MS = 1800;
 
 function formatCargo(g: { puesto?: string | null; departamento?: string | null }) {
@@ -130,6 +152,7 @@ export function EjecucionPanel({
   ganadoresIniciales = [],
   empresasParticipantes = [],
   navegacion,
+  cuotaSugerencias,
 }: EjecucionPanelProps) {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -151,6 +174,12 @@ export function EjecucionPanel({
   );
   const [motivoReemplazo, setMotivoReemplazo] = useState("");
   const [reemplazando, setReemplazando] = useState(false);
+  const [adicionalesOpen, setAdicionalesOpen] = useState(false);
+  const [adicionalesCantidad, setAdicionalesCantidad] = useState("1");
+  const [adicionalesMotivo, setAdicionalesMotivo] = useState("");
+  const [adicionalesCampoKey, setAdicionalesCampoKey] = useState("LIBRE");
+  const [adicionalesValor, setAdicionalesValor] = useState("");
+  const [adicionando, setAdicionando] = useState(false);
   const [reveladosCount, setReveladosCount] = useState(0);
   const [justRevealedIdx, setJustRevealedIdx] = useState<number | null>(null);
   const poolRef = useRef<string[]>([]);
@@ -426,6 +455,90 @@ export function EjecucionPanel({
     }
   }
 
+  async function ejecutarAdicionales() {
+    const cantidad = Number(adicionalesCantidad);
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 100) return;
+    setAdicionalesOpen(false);
+    setAdicionando(true);
+    try {
+      const campoSel = CAMPOS_CUOTA.find((c) => c.key === adicionalesCampoKey);
+      const cuota =
+        campoSel && adicionalesValor.trim()
+          ? {
+              entidad: campoSel.entidad,
+              campo: campoSel.campo,
+              valor: adicionalesValor.trim(),
+            }
+          : null;
+      const res = await fetch(
+        `/api/eventos/${eventoId}/sorteos/${sorteoId}/ganadores-adicionales`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            cantidad,
+            motivo: adicionalesMotivo.trim() || null,
+            cuota,
+          }),
+        },
+      );
+      const body = await res.json();
+      if (!res.ok) {
+        toast.error(
+          body.error?.message ?? "No se pudieron sortear ganadores adicionales",
+        );
+        router.refresh();
+        return;
+      }
+      const data = body.data as AdicionalesApiData;
+      const nuevos: GanadorInfo[] = data.ganadores.map((g) => ({
+        id: g.id,
+        posicion: g.posicion,
+        esAdicional: true,
+        codigo: g.codigo,
+        nombre: g.nombre,
+        empresa: g.empresa,
+        empresaCodigo: g.empresaCodigo,
+        puesto: g.puesto,
+        departamento: g.departamento,
+      }));
+      const prev = enSecuencia
+        ? colaGanadores.slice(0, reveladosCount)
+        : ganadoresActuales;
+      const lista = [...prev, ...nuevos];
+      setColaGanadores(lista);
+      setReveladosCount(prev.length);
+      setReemplazoDestacado(null);
+      if (modoRevelacion === "AUTOMATICO") {
+        await revelarSiguiente(lista, prev.length);
+      } else {
+        toast.success(
+          `${nuevos.length} ganador${nuevos.length === 1 ? "" : "es"} adicional${nuevos.length === 1 ? "" : "es"} listo${nuevos.length === 1 ? "" : "s"} para revelar`,
+        );
+      }
+    } catch {
+      toast.error("Error de red al agregar ganadores adicionales");
+    } finally {
+      setAdicionando(false);
+    }
+  }
+
+  function opcionesCuotaAdicional(): string[] {
+    const sel = CAMPOS_CUOTA.find((c) => c.key === adicionalesCampoKey);
+    if (!sel || !cuotaSugerencias) return [];
+    if (sel.entidad === "EMPLEADO") {
+      if (sel.campo === "departamento") return cuotaSugerencias.departamentos;
+      if (sel.campo === "clasificacion")
+        return cuotaSugerencias.clasificaciones;
+      if (sel.campo === "zona") return cuotaSugerencias.zonas;
+      if (sel.campo === "puesto") return cuotaSugerencias.puestos;
+    }
+    if (sel.entidad === "EMPRESA" && sel.campo === "codigo") {
+      return cuotaSugerencias.empresasCodigos;
+    }
+    return [];
+  }
+
   const yaEjecutadoInicial =
     !enSecuencia && ganadoresIniciales.length > 0;
   const ejecutable =
@@ -504,7 +617,7 @@ export function EjecucionPanel({
               Premios
             </span>
             <span className="text-2xl font-bold text-foreground">
-              {cantidadGanadores}
+              {Math.max(cantidadGanadores, ganadoresMostrados.length)}
             </span>
           </div>
           <Button
@@ -596,7 +709,12 @@ export function EjecucionPanel({
             </div>
             <span className="block text-xs font-bold uppercase tracking-widest text-amber-500">
               ¡Ganador #{destacado.posicion ?? reveladosCount} de{" "}
-              {totalEsperado}!{destacado.esReemplazo ? " Reemplazo" : ""}
+              {totalEsperado}!
+              {destacado.esReemplazo
+                ? " Reemplazo"
+                : destacado.esAdicional
+                  ? " Adicional"
+                  : ""}
             </span>
             <div className="space-y-1.5">
               <p className="text-3xl font-black text-foreground md:text-5xl">
@@ -729,6 +847,19 @@ export function EjecucionPanel({
           </AlertDialog>
         )}
 
+        {!faltanPorRevelar && ganadoresMostrados.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSpinning || reemplazando || adicionando}
+            onClick={() => setAdicionalesOpen(true)}
+            className="h-auto rounded-2xl border-emerald-500/40 px-6 py-4 text-base font-bold text-emerald-600 shadow-sm hover:bg-emerald-500/10 hover:text-emerald-600"
+          >
+            <UserPlus className="size-5" />
+            Agregar ganador
+          </Button>
+        )}
+
         {!faltanPorRevelar &&
           !isSpinning &&
           ganadoresMostrados.length > 0 &&
@@ -803,6 +934,11 @@ export function EjecucionPanel({
                         {g.esReemplazo && (
                           <span className="shrink-0 rounded-md bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-600">
                             Reemplazo
+                          </span>
+                        )}
+                        {g.esAdicional && (
+                          <span className="shrink-0 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                            Adicional
                           </span>
                         )}
                       </div>
@@ -881,6 +1017,109 @@ export function EjecucionPanel({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => void ejecutarReemplazo()}>
               Reemplazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={adicionalesOpen}
+        onOpenChange={(open) => {
+          setAdicionalesOpen(open);
+          if (!open) {
+            setAdicionalesCantidad("1");
+            setAdicionalesMotivo("");
+            setAdicionalesCampoKey("LIBRE");
+            setAdicionalesValor("");
+          }
+        }}
+      >
+        <AlertDialogContent container={panelRef}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Agregar ganadores adicionales</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se sortearán premios adicionales entre los elegibles que aún no
+              han ganado en este evento, aplicando las mismas reglas y
+              asistencia del sorteo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="adicionales-cantidad"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Cantidad de ganadores
+              </label>
+              <Input
+                id="adicionales-cantidad"
+                type="number"
+                min={1}
+                max={100}
+                value={adicionalesCantidad}
+                onChange={(e) => setAdicionalesCantidad(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="adicionales-cuota"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Restringir por cuota (opcional)
+              </label>
+              <select
+                id="adicionales-cuota"
+                value={adicionalesCampoKey}
+                onChange={(e) => {
+                  setAdicionalesCampoKey(e.target.value);
+                  setAdicionalesValor("");
+                }}
+                className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="LIBRE">Libre entre elegibles</option>
+                {CAMPOS_CUOTA.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {adicionalesCampoKey !== "LIBRE" && (
+                <>
+                  <Input
+                    value={adicionalesValor}
+                    onChange={(e) => setAdicionalesValor(e.target.value)}
+                    placeholder="Valor de la cuota (vacío = libre)"
+                    maxLength={300}
+                    list="adicionales-cuota-valores"
+                  />
+                  <datalist id="adicionales-cuota-valores">
+                    {opcionesCuotaAdicional().map((v) => (
+                      <option key={v} value={v} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="adicionales-motivo"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Motivo (opcional)
+              </label>
+              <Input
+                id="adicionales-motivo"
+                value={adicionalesMotivo}
+                onChange={(e) => setAdicionalesMotivo(e.target.value)}
+                placeholder="Premio extra, ganador no reclamó, etc."
+                maxLength={300}
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void ejecutarAdicionales()}>
+              Sortear adicionales
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -37,6 +37,14 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                   >
                     {e.estado}
                   </Badge>
+                  {e.esAdicional && (
+                    <Badge
+                      variant="outline"
+                      className="border-emerald-500/40 text-emerald-600"
+                    >
+                      Adicional
+                    </Badge>
+                  )}
                   <span className="text-sm text-muted-foreground">
                     {formatDateTime(e.ejecutadoAt)}
                   </span>
@@ -47,6 +55,11 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                   {e.ejecutadoPor && (
                     <span className="text-sm text-muted-foreground">
                       por {e.ejecutadoPor}
+                    </span>
+                  )}
+                  {e.motivo && (
+                    <span className="text-xs text-muted-foreground">
+                      · {e.motivo}
                     </span>
                   )}
                 </div>
@@ -67,6 +80,9 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                           key={g.id}
                           className={`text-sm ${ausente ? "text-muted-foreground line-through decoration-rose-500/50" : ""}`}
                         >
+                          <span className="font-mono text-muted-foreground">
+                            #{g.posicion}
+                          </span>{" "}
                           <span className="font-mono">{emp.codigo}</span> —{" "}
                           {emp.nombres} {emp.apellidos}
                           {cargo ? (

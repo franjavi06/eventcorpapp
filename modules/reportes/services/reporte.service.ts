@@ -62,7 +62,11 @@ export async function getReporteEvento(eventoId: string) {
             },
           },
         },
-        ejecucion: { include: { sorteo: { select: { nombre: true } } } },
+        ejecucion: {
+          include: {
+            sorteo: { select: { nombre: true } },
+          },
+        },
         reemplazadoCon: {
           include: {
             participante: {
@@ -138,6 +142,7 @@ export async function getReporteEvento(eventoId: string) {
         empresa: g.participante.empleado.empresa.nombre,
         sorteo: g.ejecucion.sorteo.nombre,
         esReemplazo: g.reemplazaAGanadorId !== null,
+        esAdicional: g.ejecucion.esAdicional,
         creadoAt: g.createdAt,
       })),
     reemplazos: ganadores

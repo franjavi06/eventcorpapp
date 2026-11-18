@@ -10,6 +10,7 @@ import {
 } from "@/modules/eventos/services/evento.service";
 import { checkIn } from "@/modules/participantes/services/participante.service";
 import {
+  agregarGanadoresAdicionales,
   ejecutarSorteo,
   listEjecuciones,
   reemplazarGanadorAusente,
@@ -517,5 +518,166 @@ describe("reemplazo de ganador ausente", () => {
     await expect(
       reemplazarGanadorAusente(evento.id, crypto.randomUUID(), ganador.id),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("ganadores adicionales", () => {
+  beforeEach(cleanDatabase);
+
+  const libre = (cantidad = 1, motivo: string | null = null) => ({
+    cantidad,
+    motivo,
+    cuota: null,
+  });
+
+  it("agrega N ganadores con posiciones consecutivas sin tocar el sorteo", async () => {
+    const { evento } = await setup(5);
+    const sorteo = await sorteoActivo(evento.id);
+    await ejecutarSorteo(sorteo.id); // 2 titulares (#1, #2)
+
+    const res = await agregarGanadoresAdicionales(
+      evento.id,
+      sorteo.id,
+      libre(2, "Premio extra de última hora"),
+      "admin",
+    );
+
+    expect(res.posicionBase).toBe(2);
+    expect(res.ganadores).toHaveLength(2);
+    expect(res.ganadores.map((g) => g.posicion)).toEqual([3, 4]);
+    expect(new Set(res.ganadores.map((g) => g.empleadoId)).size).toBe(2);
+
+    const ejecucion = await prisma.sorteoEjecucion.findUniqueOrThrow({
+      where: { id: res.ejecucionId },
+    });
+    expect(ejecucion.esAdicional).toBe(true);
+    expect(ejecucion.motivo).toBe("Premio extra de última hora");
+    expect(ejecucion.ejecutadoPor).toBe("admin");
+
+    const sorteoDb = await prisma.sorteo.findUniqueOrThrow({
+      where: { id: sorteo.id },
+    });
+    expect(sorteoDb.cantidadGanadores).toBe(2); // configuración intacta
+    expect(sorteoDb.estado).toBe("FINALIZADO");
+
+    const audit = await prisma.auditoria.findFirstOrThrow({
+      where: { accion: "AGREGAR_GANADORES_ADICIONALES", entidadId: res.ejecucionId },
+    });
+    expect(audit.actor).toBe("admin");
+
+    // los adicionales se ven en el historial como VALIDO
+    const [eje] = await listEjecuciones(sorteo.id);
+    const adicional = (await listEjecuciones(sorteo.id)).find(
+      (e) => e.id === res.ejecucionId,
+    )!;
+    expect(adicional.esAdicional).toBe(true);
+    expect(adicional.ganadores.map((g) => g.posicion)).toEqual([3, 4]);
+    expect(eje.ganadores).toHaveLength(2);
+  });
+
+  it("rechaza sortear adicionales en un sorteo no finalizado o de otro evento", async () => {
+    const { evento } = await setup(3);
+    const borrador = await createSorteo(evento.id, SORTEO);
+    await expect(
+      agregarGanadoresAdicionales(evento.id, borrador.id, libre()),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+    const otroEvento = await createEvento({ ...EVENTO, codigo: "EVT-2" });
+    await expect(
+      agregarGanadoresAdicionales(otroEvento.id, sorteo.id, libre()),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("excluye a ganadores válidos y ausentes del evento", async () => {
+    const { evento } = await setup(3);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+    const [ganador] = (await listEjecuciones(sorteo.id))[0].ganadores;
+    // un titular pasa a AUSENTE → quedan 2 ganadores registrados (ambos excluidos)
+    await reemplazarGanadorAusente(evento.id, sorteo.id, ganador.id);
+
+    const res = await agregarGanadoresAdicionales(
+      evento.id,
+      sorteo.id,
+      libre(1),
+    );
+    const empleadosUsados = await prisma.sorteoGanador.findMany({
+      where: { eventoId: evento.id, NOT: { id: res.ganadores[0].id } },
+      select: { empleadoId: true },
+    });
+    expect(
+      empleadosUsados.map((e) => e.empleadoId),
+    ).not.toContain(res.ganadores[0].empleadoId);
+
+    // solo quedaba 1 candidato (3 empleados - 2 premiados); pedir otro falla
+    await expect(
+      agregarGanadoresAdicionales(evento.id, sorteo.id, libre(1)),
+    ).rejects.toBeInstanceOf(ConflictError);
+    const fallida = await prisma.sorteoEjecucion.findFirstOrThrow({
+      where: { sorteoId: sorteo.id, estado: "FALLIDA", esAdicional: true },
+    });
+    expect(fallida.error).toContain("insuficientes");
+  });
+
+  it("aplica la cuota indicada en el diálogo y la guarda en cuotaSnapshot", async () => {
+    const { empresa, evento } = await setup(0);
+    for (const [i, dept] of [
+      [1, "VENTAS"],
+      [2, "VENTAS"],
+      [3, "IT"],
+      [4, "IT"],
+    ] as const) {
+      const e = await createEmpleado({
+        ...empleadoInput(empresa.id, i),
+        departamento: dept,
+      });
+      await checkIn(evento.id, { empleadoId: e.id });
+    }
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+
+    const res = await agregarGanadoresAdicionales(evento.id, sorteo.id, {
+      cantidad: 1,
+      motivo: null,
+      cuota: { entidad: "EMPLEADO", campo: "departamento", valor: "VENTAS" },
+    });
+
+    const empleado = await prisma.empleado.findUniqueOrThrow({
+      where: { id: res.ganadores[0].empleadoId },
+    });
+    expect(empleado.departamento).toBe("VENTAS");
+    const ganadorDb = await prisma.sorteoGanador.findUniqueOrThrow({
+      where: { id: res.ganadores[0].id },
+    });
+    expect(ganadorDb.cuotaSnapshot).toMatchObject({ valor: "VENTAS" });
+  });
+
+  it("un ganador adicional también puede marcarse ausente y reemplazarse", async () => {
+    const { evento } = await setup(4);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id);
+    const res = await agregarGanadoresAdicionales(
+      evento.id,
+      sorteo.id,
+      libre(1),
+    );
+
+    const out = await reemplazarGanadorAusente(
+      evento.id,
+      sorteo.id,
+      res.ganadores[0].id,
+      null,
+      "admin",
+    );
+
+    expect(out.posicion).toBe(2); // conserva su posición adicional
+    const nuevo = await prisma.sorteoGanador.findUniqueOrThrow({
+      where: { id: out.ganadorReemplazoId },
+    });
+    // el adicional era libre: el reemplazo no hereda cuotas del sorteo
+    expect(nuevo.cuotaSnapshot).toBeNull();
+    expect(nuevo.ejecucionId).toBe(res.ejecucionId);
   });
 });
