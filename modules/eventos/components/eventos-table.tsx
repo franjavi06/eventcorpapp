@@ -5,8 +5,10 @@ import {
   CalendarDays,
   ClipboardCheck,
   MapPin,
+  ScrollText,
   Settings2,
   Trophy,
+  Users,
 } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/empty-state";
@@ -102,6 +104,13 @@ export async function EventosTable({ query }: { query: EventoListQuery }) {
                   Check-in
                 </Link>
                 <Link
+                  href={`/eventos/${evento.id}/participantes`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Users className="size-3.5" />
+                  Participantes
+                </Link>
+                <Link
                   href={`/eventos/${evento.id}/sorteos`}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
@@ -114,6 +123,13 @@ export async function EventosTable({ query }: { query: EventoListQuery }) {
                 >
                   <BarChart3 className="size-3.5" />
                   Reporte
+                </Link>
+                <Link
+                  href={`/eventos/${evento.id}/auditoria`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <ScrollText className="size-3.5" />
+                  Auditoría
                 </Link>
               </div>
               <Link
