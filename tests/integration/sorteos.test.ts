@@ -14,6 +14,7 @@ import {
   excluirDeSorteos,
 } from "@/modules/participantes/services/participante.service";
 import {
+  addCuota,
   addRegla,
   createSorteo,
   createSorteosBulk,
@@ -21,6 +22,7 @@ import {
   getSorteo,
   listarElegibles,
   removeRegla,
+  simularSorteo,
   updateRegla,
   updateSorteo,
 } from "@/modules/sorteos/services/sorteo.service";
@@ -308,6 +310,109 @@ describe("sorteos service", () => {
       });
       const { total } = await listarElegibles(s.id);
       expect(total).toBe(0);
+    });
+
+    it("listarElegibles reporta adjudicables y vacantes cuando faltan candidatos", async () => {
+      const { empresa, evento } = await setup();
+      for (let i = 1; i <= 3; i++) {
+        const e = await createEmpleado(
+          empleadoInput(empresa.id, {
+            codigo: `E-${i}`,
+            correo: `e${i}@example.com`,
+          }),
+        );
+        await checkIn(evento.id, { empleadoId: e.id });
+      }
+      const s = await createSorteo(evento.id, {
+        ...SORTEO,
+        cantidadGanadores: 5,
+      });
+
+      const res = await listarElegibles(s.id);
+      expect(res.total).toBe(3);
+      expect(res.cantidadSolicitada).toBe(5);
+      expect(res.adjudicables).toBe(3);
+      expect(res.vacantes).toBe(2);
+      expect(res.alcanzaCompleta).toBe(false);
+    });
+
+    it("simularSorteo devuelve muestra parcial en vez de fallar cuando faltan candidatos", async () => {
+      const { empresa, evento } = await setup();
+      for (let i = 1; i <= 3; i++) {
+        const e = await createEmpleado(
+          empleadoInput(empresa.id, {
+            codigo: `E-${i}`,
+            correo: `e${i}@example.com`,
+          }),
+        );
+        await checkIn(evento.id, { empleadoId: e.id });
+      }
+      const s = await createSorteo(evento.id, {
+        ...SORTEO,
+        cantidadGanadores: 5,
+      });
+
+      const sim = await simularSorteo(s.id);
+      expect(sim.ganadoresSimulados).toHaveLength(3);
+      expect(sim.cantidadGanadores).toBe(5);
+      expect(sim.parcial).toBe(true);
+      expect(sim.vacantes).toBe(2);
+      expect(sim.faltantesDetalle.length).toBeGreaterThan(0);
+    });
+
+    it("simularSorteo con 0 elegibles devuelve lista vacía con detalle", async () => {
+      const { evento } = await setup();
+      const s = await createSorteo(evento.id, SORTEO);
+
+      const sim = await simularSorteo(s.id);
+      expect(sim.ganadoresSimulados).toHaveLength(0);
+      expect(sim.parcial).toBe(true);
+      expect(sim.faltantesDetalle.length).toBeGreaterThan(0);
+    });
+
+    it("simularSorteo con cuota incompleta deja vacantes sin reasignar a otra área", async () => {
+      const { empresa, evento } = await setup();
+      // 1 VENTAS (cuota pide 2) + 3 IT (cuota pide 1)
+      const datos = [
+        { codigo: "E-1", correo: "a@example.com", departamento: "VENTAS" },
+        { codigo: "E-2", correo: "b@example.com", departamento: "IT" },
+        { codigo: "E-3", correo: "c@example.com", departamento: "IT" },
+        { codigo: "E-4", correo: "d@example.com", departamento: "IT" },
+      ];
+      for (const d of datos) {
+        const e = await createEmpleado(
+          empleadoInput(empresa.id, {
+            codigo: d.codigo,
+            correo: d.correo,
+            departamento: d.departamento,
+          }),
+        );
+        await checkIn(evento.id, { empleadoId: e.id });
+      }
+      const s = await createSorteo(evento.id, {
+        ...SORTEO,
+        cantidadGanadores: 1,
+      });
+      await addCuota(s.id, {
+        entidad: "EMPLEADO",
+        campo: "departamento",
+        valor: "VENTAS",
+        cantidad: 2,
+      });
+      await addCuota(s.id, {
+        entidad: "EMPLEADO",
+        campo: "departamento",
+        valor: "IT",
+        cantidad: 1,
+      });
+      // cantidadGanadores quedó en 3 (2 VENTAS + 1 IT)
+
+      const sim = await simularSorteo(s.id);
+      expect(sim.cantidadGanadores).toBe(3);
+      expect(sim.ganadoresSimulados).toHaveLength(2);
+      expect(sim.parcial).toBe(true);
+      expect(sim.vacantes).toBe(1);
+      expect(sim.faltantesDetalle.join(" ")).toContain("VENTAS");
     });
 
     it("createSorteosBulk crea múltiples sorteos con orden correlativo", async () => {

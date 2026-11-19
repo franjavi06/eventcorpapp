@@ -1,0 +1,1 @@
+ALTER TYPE "SorteoEjecucionEstado" ADD VALUE IF NOT EXISTS 'PARCIAL';

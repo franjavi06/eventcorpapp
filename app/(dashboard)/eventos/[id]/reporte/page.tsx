@@ -163,8 +163,12 @@ async function ReporteContent({
                   <TableCell>
                     <Badge variant="outline">{s.estado}</Badge>
                   </TableCell>
-                  <TableCell className="text-right">
-                    {s.cantidadGanadores}
+                  <TableCell
+                    className={`text-right ${s.ejecucionParcial ? "font-semibold text-amber-600" : ""}`}
+                  >
+                    {s.ejecucionParcial || s.adjudicados !== s.cantidadGanadores
+                      ? `${s.adjudicados} de ${s.cantidadGanadores}${s.ejecucionParcial ? " (parcial)" : ""}`
+                      : s.cantidadGanadores}
                   </TableCell>
                   <TableCell className="text-right">{s.reglas}</TableCell>
                   <TableCell className="text-right">{s.ejecuciones}</TableCell>

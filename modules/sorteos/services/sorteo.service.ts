@@ -42,7 +42,7 @@ async function assertSorteo(sorteoId: string) {
  */
 async function assertSorteoEditable(sorteoId: string) {
   const completada = await prisma.sorteoEjecucion.findFirst({
-    where: { sorteoId, estado: "COMPLETADA" },
+    where: { sorteoId, estado: { in: ["COMPLETADA", "PARCIAL"] } },
     select: { id: true },
   });
   if (completada) {
@@ -532,32 +532,67 @@ function shuffleInPlace<T>(arr: T[]): T[] {
   return arr;
 }
 
+export type SeleccionResultado<T> =
+  | {
+      ok: true;
+      seleccionados: T[];
+      cuotasAsignadas: (CuotaAsignada | null)[];
+      parcial: boolean;
+      vacantes: number;
+      faltantesDetalle: string[];
+    }
+  | { ok: false; error: string };
+
 /**
  * Selecciona `cantidadTotal` candidatos respetando las cuotas activas.
  * Si no hay cuotas activas, selecciona al azar de todo el pool.
  * Si hay cuotas activas, extrae `cuota.cantidad` de cada grupo y el remanente
  * (si `cantidadTotal > sumaCuotas`) del resto de candidatos no seleccionados.
+ *
+ * Con `permitirParcial: true` selecciona solo los cupos adjudicables:
+ * cada cuota toma `min(disponibles, cantidad)` de su propio grupo y los
+ * faltantes quedan vacantes (nunca se rellenan con otra área); los cupos
+ * libres configurados (`cantidadTotal - sumaCuotas`) toman solo su tope.
+ * Falla únicamente cuando no hay ningún candidato adjudicable.
  */
 export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
   candidatos: T[],
   cantidadTotal: number,
   cuotasActivas: Pick<SorteoCuota, "entidad" | "campo" | "valor" | "cantidad">[],
-):
-  | { ok: true; seleccionados: T[]; cuotasAsignadas: (CuotaAsignada | null)[] }
-  | { ok: false; error: string } {
+  opciones?: { permitirParcial?: boolean },
+): SeleccionResultado<T> {
+  const permitirParcial = opciones?.permitirParcial === true;
+  const faltantesDetalle: string[] = [];
+
   if (cuotasActivas.length === 0) {
-    if (candidatos.length < cantidadTotal) {
+    if (candidatos.length < cantidadTotal && !permitirParcial) {
       return {
         ok: false,
         error: `Candidatos insuficientes: se requieren ${cantidadTotal} y hay ${candidatos.length}`,
       };
     }
+    if (candidatos.length === 0) {
+      return {
+        ok: false,
+        error: `No hay candidatos elegibles: se requieren ${cantidadTotal} y hay 0`,
+      };
+    }
+    const aTomar = Math.min(candidatos.length, cantidadTotal);
     const copia = shuffleInPlace([...candidatos]);
-    const seleccionados = copia.slice(0, cantidadTotal);
+    const seleccionados = copia.slice(0, aTomar);
+    const vacantes = cantidadTotal - aTomar;
+    if (vacantes > 0) {
+      faltantesDetalle.push(
+        `Solo hay ${aTomar} de ${cantidadTotal} candidatos elegibles: ${vacantes} premio(s) quedarán vacantes`,
+      );
+    }
     return {
       ok: true,
       seleccionados,
       cuotasAsignadas: seleccionados.map(() => null),
+      parcial: vacantes > 0,
+      vacantes,
+      faltantesDetalle,
     };
   }
 
@@ -579,14 +614,22 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
     const disponibles = candidatos.filter(
       (c) => !usados.has(c.empleadoId) && candidatoCumpleCuota(c, cuota),
     );
-    if (disponibles.length < cuota.cantidad) {
+    if (disponibles.length < cuota.cantidad && !permitirParcial) {
       return {
         ok: false,
         error: `Candidatos insuficientes para la cuota ${labelCampo} = "${cuota.valor}": se requieren ${cuota.cantidad} y hay ${disponibles.length} disponible(s)`,
       };
     }
+    const aTomar = permitirParcial
+      ? Math.min(disponibles.length, cuota.cantidad)
+      : cuota.cantidad;
+    if (aTomar < cuota.cantidad) {
+      faltantesDetalle.push(
+        `Cuota ${labelCampo} = "${cuota.valor}": se adjudican ${aTomar} de ${cuota.cantidad} cupo(s)`,
+      );
+    }
     const barajados = shuffleInPlace([...disponibles]);
-    const elegidosGrupo = barajados.slice(0, cuota.cantidad);
+    const elegidosGrupo = barajados.slice(0, aTomar);
     for (const c of elegidosGrupo) {
       usados.add(c.empleadoId);
       seleccionados.push(c);
@@ -598,24 +641,49 @@ export function seleccionarCandidatosConCuotas<T extends CandidatoParaCuota>(
     }
   }
 
-  const faltantes = cantidadTotal - seleccionados.length;
-  if (faltantes > 0) {
+  // Los cupos libres son los configurados por encima de la suma de cuotas;
+  // las vacantes de cuotas incompletas nunca se rellenan con otra área.
+  const cuposLibres = cantidadTotal - sumaCuotas;
+  if (cuposLibres > 0) {
     const resto = candidatos.filter((c) => !usados.has(c.empleadoId));
-    if (resto.length < faltantes) {
+    const aTomar = permitirParcial
+      ? Math.min(resto.length, cuposLibres)
+      : cuposLibres;
+    if (aTomar < cuposLibres && !permitirParcial) {
       return {
         ok: false,
-        error: `Candidatos insuficientes para completar los ${faltantes} cupos libres restantes: solo quedan ${resto.length}`,
+        error: `Candidatos insuficientes para completar los ${cuposLibres} cupos libres restantes: solo quedan ${resto.length}`,
       };
     }
+    if (aTomar < cuposLibres) {
+      faltantesDetalle.push(
+        `Cupos libres: se adjudican ${aTomar} de ${cuposLibres} por falta de candidatos`,
+      );
+    }
     const barajadosResto = shuffleInPlace([...resto]);
-    const elegidosResto = barajadosResto.slice(0, faltantes);
+    const elegidosResto = barajadosResto.slice(0, aTomar);
     for (const c of elegidosResto) {
       seleccionados.push(c);
       cuotasAsignadas.push(null);
     }
   }
 
-  return { ok: true, seleccionados, cuotasAsignadas };
+  if (permitirParcial && seleccionados.length === 0) {
+    return {
+      ok: false,
+      error: "No hay candidatos elegibles adjudicables",
+    };
+  }
+
+  const vacantes = cantidadTotal - seleccionados.length;
+  return {
+    ok: true,
+    seleccionados,
+    cuotasAsignadas,
+    parcial: vacantes > 0,
+    vacantes,
+    faltantesDetalle,
+  };
 }
 
 export async function listarElegibles(sorteoId: string, take = 50) {
@@ -650,31 +718,29 @@ export async function listarElegibles(sorteoId: string, take = 50) {
       },
     }),
     prisma.eventoParticipante.count({ where }),
-    sorteo.cuotas.some((c) => c.activo)
-      ? prisma.eventoParticipante.findMany({
-          where,
+    prisma.eventoParticipante.findMany({
+      where,
+      select: {
+        id: true,
+        empleadoId: true,
+        empleado: {
           select: {
-            id: true,
-            empleadoId: true,
-            empleado: {
+            codigo: true,
+            departamento: true,
+            clasificacion: true,
+            zona: true,
+            puesto: true,
+            empresa: {
               select: {
                 codigo: true,
-                departamento: true,
                 clasificacion: true,
-                zona: true,
-                puesto: true,
-                empresa: {
-                  select: {
-                    codigo: true,
-                    clasificacion: true,
-                    ubicacion: true,
-                  },
-                },
+                ubicacion: true,
               },
             },
           },
-        })
-      : Promise.resolve([]),
+        },
+      },
+    }),
   ]);
 
   const cuotasActivas = sorteo.cuotas.filter((c) => c.activo);
@@ -688,11 +754,24 @@ export async function listarElegibles(sorteoId: string, take = 50) {
       .length,
   }));
 
+  const simulacion = seleccionarCandidatosConCuotas(
+    todosParaCuotas,
+    sorteo.cantidadGanadores,
+    cuotasActivas,
+    { permitirParcial: true },
+  );
+  const adjudicables = simulacion.ok ? simulacion.seleccionados.length : 0;
+  const vacantes = sorteo.cantidadGanadores - adjudicables;
+
   return {
     total,
     data,
     reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
     cuotasResumen,
+    cantidadSolicitada: sorteo.cantidadGanadores,
+    adjudicables,
+    vacantes: Math.max(vacantes, 0),
+    alcanzaCompleta: vacantes <= 0,
   };
 }
 
@@ -734,17 +813,23 @@ export async function simularSorteo(sorteoId: string) {
     candidatos,
     sorteo.cantidadGanadores,
     cuotasActivas,
+    { permitirParcial: true },
   );
-  if (!resultado.ok) {
-    throw new ValidationError(resultado.error);
-  }
 
+  const seleccionados = resultado.ok ? resultado.seleccionados : [];
   return {
     totalElegibles: candidatos.length,
     cantidadGanadores: sorteo.cantidadGanadores,
     reglasAplicadas: sorteo.reglas.filter((r) => r.activo).length,
     cuotasAplicadas: cuotasActivas.length,
-    ganadoresSimulados: resultado.seleccionados.map((c, idx) => ({
+    parcial: resultado.ok ? resultado.parcial : true,
+    vacantes: resultado.ok
+      ? resultado.vacantes
+      : sorteo.cantidadGanadores,
+    faltantesDetalle: resultado.ok
+      ? resultado.faltantesDetalle
+      : [resultado.error],
+    ganadoresSimulados: seleccionados.map((c, idx) => ({
       orden: idx + 1,
       id: c.id,
       empleado: c.empleado,

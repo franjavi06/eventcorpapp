@@ -184,6 +184,7 @@ export const ejecutarGanadoresAdicionalesSchema = z.object({
     .default(1),
   motivo: optionalText(300),
   cuota: cuotaAdicionalSchema.nullish().transform((v) => v ?? null),
+  permitirParcial: z.boolean().default(false),
 });
 
 export type EjecutarGanadoresAdicionalesInput = z.infer<

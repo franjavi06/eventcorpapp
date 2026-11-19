@@ -224,8 +224,8 @@ export async function buildEventoReporteExcel(
   for (const s of r.sorteos) {
     sorteosSheet.addRow([
       s.nombre,
-      s.estado,
-      s.cantidadGanadores,
+      s.ejecucionParcial ? `${s.estado} (PARCIAL)` : s.estado,
+      `${s.adjudicados} de ${s.cantidadGanadores}`,
       s.reglas,
       s.ejecuciones,
       s.ejecutadoAt ? formatDateTime(s.ejecutadoAt) : "",
@@ -430,8 +430,8 @@ export async function buildEventoReportePdf(
       ["Nombre", "Estado", "Ganadores", "Reglas", "Ejecuciones", "Ejecutado"],
       r.sorteos.map((s) => [
         s.nombre,
-        s.estado,
-        s.cantidadGanadores,
+        s.ejecucionParcial ? `${s.estado} (PARCIAL)` : s.estado,
+        `${s.adjudicados} de ${s.cantidadGanadores}`,
         s.reglas,
         s.ejecuciones,
         s.ejecutadoAt ? formatDateTime(s.ejecutadoAt) : "-",

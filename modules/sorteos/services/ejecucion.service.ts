@@ -12,7 +12,7 @@ import { sorteoRepository } from "@/modules/sorteos/repositories/sorteo.reposito
 
 type EjecucionResultado = {
   ejecucionId: string;
-  estado: "COMPLETADA" | "FALLIDA";
+  estado: "COMPLETADA" | "PARCIAL" | "FALLIDA";
   totalCandidatos: number;
   ganadores: string[];
 };
@@ -23,10 +23,14 @@ type EjecucionResultado = {
  * verificación de cantidad → selección aleatoria → ejecución + ganadores +
  * sorteo FINALIZADO. Cualquier error revierte todo salvo el registro FALLIDA
  * de candidatos insuficientes, que se confirma antes de lanzar el error.
+ * Con `permitirParcial: true`, si faltan candidatos se adjudican solo los
+ * cupos cubiertos (cuotas incompletas quedan vacantes) y la ejecución queda
+ * registrada como PARCIAL.
  */
 export async function ejecutarSorteo(
   sorteoId: string,
   ejecutadoPor?: string | null,
+  opciones?: { permitirParcial?: boolean },
 ): Promise<EjecucionResultado> {
   const sorteo = await sorteoRepository.findById(sorteoId);
   if (!sorteo) throw new NotFoundError("Sorteo no encontrado");
@@ -36,7 +40,7 @@ export async function ejecutarSorteo(
     );
   }
   const completada = await prisma.sorteoEjecucion.findFirst({
-    where: { sorteoId, estado: "COMPLETADA" },
+    where: { sorteoId, estado: { in: ["COMPLETADA", "PARCIAL"] } },
     select: { id: true },
   });
   if (completada) {
@@ -49,7 +53,7 @@ export async function ejecutarSorteo(
 
     // Re-verificar dentro del lock
     const previa = await tx.sorteoEjecucion.findFirst({
-      where: { sorteoId, estado: "COMPLETADA" },
+      where: { sorteoId, estado: { in: ["COMPLETADA", "PARCIAL"] } },
       select: { id: true },
     });
     if (previa) {
@@ -124,6 +128,7 @@ export async function ejecutarSorteo(
       candidatos,
       sorteo.cantidadGanadores,
       cuotasActivas,
+      { permitirParcial: opciones?.permitirParcial },
     );
 
     if (!seleccion.ok) {
@@ -152,9 +157,19 @@ export async function ejecutarSorteo(
     }
 
     const seleccionados = seleccion.seleccionados;
+    const estadoFinal: "COMPLETADA" | "PARCIAL" = seleccion.parcial
+      ? "PARCIAL"
+      : "COMPLETADA";
+    const detalleParcial = seleccion.parcial
+      ? seleccion.faltantesDetalle.join("; ")
+      : null;
 
     const ejecucion = await tx.sorteoEjecucion.create({
-      data: { ...base, estado: "COMPLETADA" },
+      data: {
+        ...base,
+        estado: estadoFinal,
+        error: detalleParcial,
+      },
     });
     await tx.sorteoGanador.createMany({
       data: seleccionados.map((c, idx) => ({
@@ -179,6 +194,10 @@ export async function ejecutarSorteo(
         despues: {
           sorteoId,
           totalCandidatos: candidatos.length,
+          cantidadSolicitada: sorteo.cantidadGanadores,
+          adjudicados: seleccionados.length,
+          parcial: seleccion.parcial,
+          vacantes: seleccion.vacantes,
           ganadores: seleccionados.map((c) => c.empleadoId),
         },
       },
@@ -187,14 +206,14 @@ export async function ejecutarSorteo(
 
     return {
       ejecucionId: ejecucion.id,
-      estado: "COMPLETADA" as const,
+      estado: estadoFinal,
       totalCandidatos: candidatos.length,
       ganadores: seleccionados.map((c) => c.empleadoId),
     };
   });
 
   if (resultado.estado === "FALLIDA") {
-    throw new ConflictError(resultado.error, {
+    throw new ConflictError(resultado.error ?? "La ejecución falló", {
       ejecucionId: resultado.ejecucionId,
     });
   }
@@ -241,7 +260,10 @@ export async function reemplazarGanadorAusente(
       where: {
         id: ganadorId,
         eventoId: sorteo.eventoId,
-        ejecucion: { sorteoId, estado: "COMPLETADA" },
+        ejecucion: {
+          sorteoId,
+          estado: { in: ["COMPLETADA", "PARCIAL"] },
+        },
       },
       include: {
         ejecucion: { select: { esAdicional: true } },
@@ -436,11 +458,14 @@ export type AgregarAdicionalesInput = {
     campo: string;
     valor: string;
   } | null;
+  permitirParcial?: boolean;
 };
 
 export type AdicionalesResultado = {
   ejecucionId: string;
   posicionBase: number;
+  parcial?: boolean;
+  vacantes?: number;
   ganadores: {
     id: string;
     posicion: number;
@@ -505,7 +530,7 @@ export async function agregarGanadoresAdicionales(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventoId}))`;
 
     const completada = await tx.sorteoEjecucion.findFirst({
-      where: { sorteoId, estado: "COMPLETADA" },
+      where: { sorteoId, estado: { in: ["COMPLETADA", "PARCIAL"] } },
       select: { id: true },
     });
     if (!completada) {
@@ -571,6 +596,7 @@ export async function agregarGanadoresAdicionales(
       candidatos,
       input.cantidad,
       cuotasAplicadas,
+      { permitirParcial: input.permitirParcial },
     );
     if (!seleccion.ok) {
       const fallida = await tx.sorteoEjecucion.create({
@@ -599,7 +625,13 @@ export async function agregarGanadoresAdicionales(
     }
 
     const ejecucion = await tx.sorteoEjecucion.create({
-      data: { ...base, estado: "COMPLETADA" },
+      data: {
+        ...base,
+        estado: seleccion.parcial ? "PARCIAL" : "COMPLETADA",
+        error: seleccion.parcial
+          ? seleccion.faltantesDetalle.join("; ")
+          : null,
+      },
     });
 
     const ganadores: AdicionalesResultado["ganadores"] = [];
@@ -636,6 +668,9 @@ export async function agregarGanadoresAdicionales(
         despues: {
           sorteoId,
           cantidad: input.cantidad,
+          adjudicados: ganadores.length,
+          parcial: seleccion.parcial,
+          vacantes: seleccion.vacantes,
           posicionBase,
           cuota: input.cuota,
           ganadores: ganadores.map((g) => g.empleadoId),
@@ -648,6 +683,8 @@ export async function agregarGanadoresAdicionales(
       ok: true as const,
       ejecucionId: ejecucion.id,
       posicionBase,
+      parcial: seleccion.parcial,
+      vacantes: seleccion.vacantes,
       ganadores,
     };
   });

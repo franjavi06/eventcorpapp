@@ -35,7 +35,7 @@ async function EjecutarSorteoContent({
     getValoresSugeridosEvento(sorteo.eventoId),
   ]);
   const ganadoresIniciales = ejecuciones
-    .filter((e) => e.estado === "COMPLETADA")
+    .filter((e) => e.estado === "COMPLETADA" || e.estado === "PARCIAL")
     .flatMap((e) =>
       e.ganadores
         .filter((g) => g.estado === "VALIDO")

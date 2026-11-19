@@ -36,8 +36,13 @@ export async function getReporteEvento(eventoId: string) {
       include: {
         _count: { select: { reglas: true, ejecuciones: true } },
         ejecuciones: {
-          where: { estado: "COMPLETADA" },
-          select: { id: true, ejecutadoAt: true, ejecutadoPor: true },
+          where: { estado: { in: ["COMPLETADA", "PARCIAL"] } },
+          select: {
+            id: true,
+            estado: true,
+            ejecutadoAt: true,
+            ejecutadoPor: true,
+          },
           take: 1,
         },
       },
@@ -64,7 +69,7 @@ export async function getReporteEvento(eventoId: string) {
         },
         ejecucion: {
           include: {
-            sorteo: { select: { nombre: true } },
+            sorteo: { select: { id: true, nombre: true } },
           },
         },
         reemplazadoCon: {
@@ -124,6 +129,10 @@ export async function getReporteEvento(eventoId: string) {
       nombre: s.nombre,
       estado: s.estado,
       cantidadGanadores: s.cantidadGanadores,
+      adjudicados: ganadores.filter(
+        (g) => g.ejecucion.sorteo.id === s.id && g.estado === "VALIDO",
+      ).length,
+      ejecucionParcial: s.ejecuciones[0]?.estado === "PARCIAL",
       reglas: s._count.reglas,
       ejecuciones: s._count.ejecuciones,
       ejecutadoAt: s.ejecuciones[0]?.ejecutadoAt ?? null,

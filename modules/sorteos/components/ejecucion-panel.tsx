@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Briefcase,
@@ -119,6 +120,8 @@ type ReemplazoApiData = {
 
 type AdicionalesApiData = {
   ejecucionId: string;
+  parcial?: boolean;
+  vacantes?: number;
   ganadores: {
     id: string;
     posicion: number;
@@ -128,6 +131,19 @@ type AdicionalesApiData = {
     empresaCodigo: string;
     puesto: string | null;
     departamento: string | null;
+  }[];
+};
+
+type ElegiblesPreviewData = {
+  cantidadSolicitada: number;
+  adjudicables: number;
+  vacantes: number;
+  alcanzaCompleta: boolean;
+  cuotasResumen?: {
+    id: string;
+    valor: string;
+    requeridos: number;
+    disponibles: number;
   }[];
 };
 
@@ -180,6 +196,10 @@ export function EjecucionPanel({
   const [adicionalesCampoKey, setAdicionalesCampoKey] = useState("LIBRE");
   const [adicionalesValor, setAdicionalesValor] = useState("");
   const [adicionando, setAdicionando] = useState(false);
+  const [adicionalesParcial, setAdicionalesParcial] = useState(false);
+  const [previewInicio, setPreviewInicio] =
+    useState<ElegiblesPreviewData | null>(null);
+  const [cargandoPreview, setCargandoPreview] = useState(false);
   const [reveladosCount, setReveladosCount] = useState(0);
   const [justRevealedIdx, setJustRevealedIdx] = useState<number | null>(null);
   const poolRef = useRef<string[]>([]);
@@ -296,7 +316,25 @@ export function EjecucionPanel({
     }
   }, [reveladosCount]);
 
-  async function iniciarSorteo() {
+  // Al abrir la confirmación del giro, consultar cuántos premios son
+  // adjudicables con la configuración actual (aviso de sorteo parcial).
+  function onDialogOpenChange(open: boolean) {
+    setDialogOpen(open);
+    if (!open) {
+      setPreviewInicio(null);
+      setCargandoPreview(false);
+      return;
+    }
+    setCargandoPreview(true);
+    setPreviewInicio(null);
+    fetch(`/api/eventos/${eventoId}/sorteos/${sorteoId}/elegibles`)
+      .then((r) => r.json())
+      .then((body) => setPreviewInicio(body.data ?? null))
+      .catch(() => {})
+      .finally(() => setCargandoPreview(false));
+  }
+
+  async function iniciarSorteo(permitirParcial = false) {
     setIsSpinning(true);
     setJustRevealedIdx(null);
     setReemplazoDestacado(null);
@@ -326,7 +364,7 @@ export function EjecucionPanel({
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ permitirParcial }),
         },
       );
       const body = await res.json();
@@ -340,6 +378,8 @@ export function EjecucionPanel({
         return;
       }
 
+      const ejecucionParcial = body.data?.estado === "PARCIAL";
+
       let adjudicados: GanadorInfo[] = [];
       const histRes = await fetch(
         `/api/eventos/${eventoId}/sorteos/${sorteoId}/ejecuciones`,
@@ -347,7 +387,9 @@ export function EjecucionPanel({
       if (histRes.ok) {
         const histBody = await histRes.json();
         const ejecuciones: EjecucionItem[] = histBody.data ?? [];
-        const completada = ejecuciones.find((e) => e.estado === "COMPLETADA");
+        const completada = ejecuciones.find(
+          (e) => e.estado === "COMPLETADA" || e.estado === "PARCIAL",
+        );
         if (completada) {
           adjudicados = completada.ganadores
             .filter((g) => g.estado === "VALIDO")
@@ -376,6 +418,12 @@ export function EjecucionPanel({
       setColaGanadores(adjudicados);
       setReveladosCount(1);
       setJustRevealedIdx(0);
+
+      if (ejecucionParcial) {
+        toast.warning(
+          `Sorteo parcial: se adjudicaron ${adjudicados.length} de ${cantidadGanadores} premio(s). Los cupos restantes quedaron vacantes.`,
+        );
+      }
 
       if (adjudicados.length === 1) {
         toast.success("¡Sorteo completado! 1 ganador revelado");
@@ -479,6 +527,7 @@ export function EjecucionPanel({
             cantidad,
             motivo: adicionalesMotivo.trim() || null,
             cuota,
+            permitirParcial: adicionalesParcial,
           }),
         },
       );
@@ -491,6 +540,11 @@ export function EjecucionPanel({
         return;
       }
       const data = body.data as AdicionalesApiData;
+      if (data.parcial) {
+        toast.warning(
+          `Sorteo parcial: se adjudicaron ${data.ganadores.length} de ${cantidad} ganador(es) adicional(es). Los cupos restantes quedaron vacantes.`,
+        );
+      }
       const nuevos: GanadorInfo[] = data.ganadores.map((g) => ({
         id: g.id,
         posicion: g.posicion,
@@ -799,7 +853,7 @@ export function EjecucionPanel({
             </span>
           </Button>
         ) : (
-          <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <AlertDialog open={dialogOpen} onOpenChange={onDialogOpenChange}>
             <AlertDialogTrigger
               render={
                 <Button
@@ -832,15 +886,67 @@ export function EjecucionPanel({
                   FINALIZADO y su configuración quedará bloqueada.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {cargandoPreview && (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <RefreshCw className="size-3.5 animate-spin" />
+                  Verificando elegibles disponibles…
+                </p>
+              )}
+              {previewInicio && !previewInicio.alcanzaCompleta && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-left text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <div className="space-y-1">
+                    {previewInicio.adjudicables > 0 ? (
+                      <>
+                        <p className="font-semibold">
+                          Candidatos insuficientes: se solicitan{" "}
+                          {previewInicio.cantidadSolicitada} premio(s) pero solo
+                          se pueden adjudicar {previewInicio.adjudicables}.{" "}
+                          {previewInicio.vacantes} cupo(s) quedarán vacantes.
+                        </p>
+                        {previewInicio.cuotasResumen?.some(
+                          (c) => c.disponibles < c.requeridos,
+                        ) && (
+                          <ul className="list-inside list-disc">
+                            {previewInicio.cuotasResumen
+                              .filter((c) => c.disponibles < c.requeridos)
+                              .map((c) => (
+                                <li key={c.id}>
+                                  Cuota {c.valor}: {c.disponibles} de{" "}
+                                  {c.requeridos} disponible(s) — los faltantes
+                                  quedan vacantes
+                                </li>
+                              ))}
+                          </ul>
+                        )}
+                      </>
+                    ) : (
+                      <p className="font-semibold">
+                        No hay candidatos elegibles adjudicables con la
+                        configuración actual. No es posible ejecutar el sorteo.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
+                  disabled={
+                    cargandoPreview || previewInicio?.adjudicables === 0
+                  }
                   onClick={() => {
+                    const parcial =
+                      previewInicio !== null && !previewInicio.alcanzaCompleta;
                     setDialogOpen(false);
-                    iniciarSorteo();
+                    iniciarSorteo(parcial);
                   }}
                 >
-                  Ejecutar
+                  {previewInicio &&
+                  !previewInicio.alcanzaCompleta &&
+                  previewInicio.adjudicables > 0
+                    ? `Ejecutar con ${previewInicio.adjudicables} disponible(s)`
+                    : "Ejecutar"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1031,6 +1137,7 @@ export function EjecucionPanel({
             setAdicionalesMotivo("");
             setAdicionalesCampoKey("LIBRE");
             setAdicionalesValor("");
+            setAdicionalesParcial(false);
           }
         }}
       >
@@ -1115,6 +1222,27 @@ export function EjecucionPanel({
                 maxLength={300}
               />
             </div>
+            <label
+              htmlFor="adicionales-parcial"
+              className="flex items-start gap-2.5 rounded-lg border bg-muted/30 px-3 py-2.5 text-xs"
+            >
+              <input
+                id="adicionales-parcial"
+                type="checkbox"
+                checked={adicionalesParcial}
+                onChange={(e) => setAdicionalesParcial(e.target.checked)}
+                className="mt-0.5 size-4 accent-emerald-600"
+              />
+              <span>
+                <span className="font-semibold text-foreground">
+                  Permitir sorteo parcial
+                </span>
+                <span className="block text-muted-foreground">
+                  Si no hay suficientes candidatos, adjudicar solo los cupos
+                  disponibles y dejar el resto vacantes.
+                </span>
+              </span>
+            </label>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>

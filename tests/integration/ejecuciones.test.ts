@@ -681,3 +681,199 @@ describe("ganadores adicionales", () => {
     expect(nuevo.ejecucionId).toBe(res.ejecucionId);
   });
 });
+
+describe("ejecución parcial", () => {
+  beforeEach(cleanDatabase);
+
+  it("sin confirmación registra FALLIDA; con permitirParcial adjudica PARCIAL y finaliza", async () => {
+    const { evento } = await setup(3); // 3 candidatos, se piden 5
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 5 });
+
+    await expect(ejecutarSorteo(sorteo.id)).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    const [fallida] = await listEjecuciones(sorteo.id);
+    expect(fallida.estado).toBe("FALLIDA");
+    expect(
+      await prisma.sorteoGanador.count({ where: { eventoId: evento.id } }),
+    ).toBe(0);
+
+    const res = await ejecutarSorteo(sorteo.id, undefined, {
+      permitirParcial: true,
+    });
+    expect(res.estado).toBe("PARCIAL");
+    expect(res.ganadores).toHaveLength(3);
+
+    const ejecucion = await prisma.sorteoEjecucion.findUniqueOrThrow({
+      where: { id: res.ejecucionId },
+    });
+    expect(ejecucion.estado).toBe("PARCIAL");
+    expect(ejecucion.cantidadSolicitada).toBe(5);
+    expect(ejecucion.totalCandidatos).toBe(3);
+    expect(ejecucion.error).toContain("vacante");
+
+    const sorteoDb = await prisma.sorteo.findUniqueOrThrow({
+      where: { id: sorteo.id },
+    });
+    expect(sorteoDb.estado).toBe("FINALIZADO");
+    expect(sorteoDb.cantidadGanadores).toBe(5); // configuración intacta
+
+    // bloquea re-ejecución y edición igual que una COMPLETADA
+    await expect(
+      ejecutarSorteo(sorteo.id, undefined, { permitirParcial: true }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      updateSorteo(sorteo.id, { nombre: "otro" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    // auditoría registra el detalle parcial
+    const audit = await prisma.auditoria.findFirstOrThrow({
+      where: { accion: "EJECUTAR_SORTEO", entidadId: res.ejecucionId },
+    });
+    const despues = audit.despues as {
+      parcial: boolean;
+      vacantes: number;
+      adjudicados: number;
+      cantidadSolicitada: number;
+    };
+    expect(despues.parcial).toBe(true);
+    expect(despues.vacantes).toBe(2);
+    expect(despues.adjudicados).toBe(3);
+    expect(despues.cantidadSolicitada).toBe(5);
+  });
+
+  it("deja vacantes los cupos de una cuota sin candidatos, sin reasignarlos a otra área", async () => {
+    const { empresa, evento } = await setup(0);
+    // 1 VENTAS (cuota pide 2) + 3 IT (cuota pide 1)
+    for (const [i, dept] of [
+      [1, "VENTAS"],
+      [2, "IT"],
+      [3, "IT"],
+      [4, "IT"],
+    ] as const) {
+      const e = await createEmpleado({
+        ...empleadoInput(empresa.id, i),
+        departamento: dept,
+      });
+      await checkIn(evento.id, { empleadoId: e.id });
+    }
+
+    const sorteo = await createSorteo(evento.id, {
+      ...SORTEO,
+      cantidadGanadores: 1,
+      estado: "ACTIVO",
+    });
+    await addCuota(sorteo.id, {
+      entidad: "EMPLEADO",
+      campo: "departamento",
+      valor: "VENTAS",
+      cantidad: 2,
+    });
+    await addCuota(sorteo.id, {
+      entidad: "EMPLEADO",
+      campo: "departamento",
+      valor: "IT",
+      cantidad: 1,
+    });
+    // cantidadGanadores quedó sincronizado a 3 (2 VENTAS + 1 IT)
+
+    const res = await ejecutarSorteo(sorteo.id, undefined, {
+      permitirParcial: true,
+    });
+    expect(res.estado).toBe("PARCIAL");
+    expect(res.ganadores).toHaveLength(2);
+
+    const empleadosGanadores = await prisma.empleado.findMany({
+      where: { id: { in: res.ganadores } },
+    });
+    const depts = empleadosGanadores.map((e) => e.departamento);
+    // el cupo faltante de VENTAS quedó vacante: no se llenó con otro IT
+    expect(depts.filter((d) => d === "VENTAS")).toHaveLength(1);
+    expect(depts.filter((d) => d === "IT")).toHaveLength(1);
+
+    const ejecucion = await prisma.sorteoEjecucion.findUniqueOrThrow({
+      where: { id: res.ejecucionId },
+    });
+    expect(ejecucion.error).toContain("VENTAS");
+  });
+
+  it("con 0 candidatos sigue FALLIDA aunque se permita parcial", async () => {
+    const { evento } = await setup(0);
+    const sorteo = await sorteoActivo(evento.id);
+
+    await expect(
+      ejecutarSorteo(sorteo.id, undefined, { permitirParcial: true }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const [ejecucion] = await listEjecuciones(sorteo.id);
+    expect(ejecucion.estado).toBe("FALLIDA");
+    expect(ejecucion.ganadores).toHaveLength(0);
+    const sorteoDb = await prisma.sorteo.findUniqueOrThrow({
+      where: { id: sorteo.id },
+    });
+    expect(sorteoDb.estado).toBe("ACTIVO"); // no finalizó
+  });
+
+  it("un ganador de ejecución PARCIAL puede marcarse ausente y reemplazarse", async () => {
+    const { empresa, evento } = await setup(3);
+    // un 4.º empleado sin check-in: no era elegible durante la ejecución
+    const tardio = await createEmpleado(empleadoInput(empresa.id, 4));
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 5 });
+    await ejecutarSorteo(sorteo.id, undefined, { permitirParcial: true });
+    const [ganador] = (await listEjecuciones(sorteo.id))[0].ganadores;
+
+    // hace check-in después del sorteo → pasa a ser elegible para el reemplazo
+    await checkIn(evento.id, { empleadoId: tardio.id });
+    const out = await reemplazarGanadorAusente(
+      evento.id,
+      sorteo.id,
+      ganador.id,
+      null,
+      "admin",
+    );
+    expect(out.posicion).toBe(ganador.posicion);
+    expect(out.reemplazo.empleadoId).toBe(tardio.id);
+  });
+
+  it("permite ganadores adicionales después de una ejecución PARCIAL", async () => {
+    const { evento } = await setup(4);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 5 });
+    await ejecutarSorteo(sorteo.id, undefined, { permitirParcial: true }); // 4 adjudicados de 5
+
+    // quedan 0 elegibles → FALLIDA aunque se permita parcial
+    await expect(
+      agregarGanadoresAdicionales(evento.id, sorteo.id, {
+        cantidad: 1,
+        motivo: null,
+        cuota: null,
+        permitirParcial: true,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    const fallida = await prisma.sorteoEjecucion.findFirstOrThrow({
+      where: { sorteoId: sorteo.id, estado: "FALLIDA", esAdicional: true },
+    });
+    expect(fallida.error).toBeTruthy();
+  });
+
+  it("adicionales parciales adjudican lo disponible", async () => {
+    const { evento } = await setup(3);
+    const sorteo = await sorteoActivo(evento.id, { cantidadGanadores: 1 });
+    await ejecutarSorteo(sorteo.id); // 1 ganador, quedan 2 elegibles
+
+    const res = await agregarGanadoresAdicionales(evento.id, sorteo.id, {
+      cantidad: 5,
+      motivo: null,
+      cuota: null,
+      permitirParcial: true,
+    });
+    expect(res.ganadores).toHaveLength(2);
+    expect(res.parcial).toBe(true);
+    expect(res.vacantes).toBe(3);
+
+    const ejecucion = await prisma.sorteoEjecucion.findUniqueOrThrow({
+      where: { id: res.ejecucionId },
+    });
+    expect(ejecucion.estado).toBe("PARCIAL");
+    expect(ejecucion.cantidadSolicitada).toBe(5);
+  });
+});

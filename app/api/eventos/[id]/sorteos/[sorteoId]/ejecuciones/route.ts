@@ -17,6 +17,7 @@ const ejecutarSchema = z.object({
     .max(150)
     .nullish()
     .transform((v) => v || null),
+  permitirParcial: z.boolean().optional(),
 });
 
 export async function GET(
@@ -39,9 +40,13 @@ export async function POST(
     const actor = await requirePermission("SORTEOS_EJECUTAR");
     const { sorteoId } = sorteoIdParamsSchema.parse(await context.params);
     const raw = await request.text();
-    const { ejecutadoPor } = ejecutarSchema.parse(raw ? JSON.parse(raw) : {});
+    const { ejecutadoPor, permitirParcial } = ejecutarSchema.parse(
+      raw ? JSON.parse(raw) : {},
+    );
     return ok(
-      await ejecutarSorteo(sorteoId, ejecutadoPor ?? actor?.username),
+      await ejecutarSorteo(sorteoId, ejecutadoPor ?? actor?.username, {
+        permitirParcial,
+      }),
       201,
     );
   } catch (error) {

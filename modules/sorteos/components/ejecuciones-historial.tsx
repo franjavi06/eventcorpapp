@@ -32,7 +32,16 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     variant={
-                      e.estado === "COMPLETADA" ? "default" : "destructive"
+                      e.estado === "FALLIDA"
+                        ? "destructive"
+                        : e.estado === "PARCIAL"
+                          ? "outline"
+                          : "default"
+                    }
+                    className={
+                      e.estado === "PARCIAL"
+                        ? "border-amber-500/50 text-amber-600"
+                        : undefined
                     }
                   >
                     {e.estado}
@@ -49,8 +58,10 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                     {formatDateTime(e.ejecutadoAt)}
                   </span>
                   <span className="text-sm">
-                    {e.totalCandidatos} candidatos · {e.cantidadSolicitada}{" "}
-                    solicitados
+                    {e.totalCandidatos} candidatos ·{" "}
+                    {e.estado === "PARCIAL"
+                      ? `${e.ganadores.length} de ${e.cantidadSolicitada} adjudicados`
+                      : `${e.cantidadSolicitada} solicitados`}
                   </span>
                   {e.ejecutadoPor && (
                     <span className="text-sm text-muted-foreground">
@@ -64,7 +75,11 @@ export async function EjecucionesHistorial({ sorteoId }: { sorteoId: string }) {
                   )}
                 </div>
                 {e.error && (
-                  <p className="mt-1 text-sm text-destructive">{e.error}</p>
+                  <p
+                    className={`mt-1 text-sm ${e.estado === "PARCIAL" ? "text-amber-600" : "text-destructive"}`}
+                  >
+                    {e.error}
+                  </p>
                 )}
                 {e.ganadores.length > 0 && (
                   <ul className="mt-2 space-y-1 border-t pt-2">

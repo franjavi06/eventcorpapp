@@ -219,6 +219,7 @@ model SorteoRegla {
 
 enum SorteoEjecucionEstado {
   COMPLETADA
+  PARCIAL
   FALLIDA
 }
 

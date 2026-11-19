@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Dices, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, Dices, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmpleadoAvatar } from "@/components/shared/empleado-avatar";
@@ -62,6 +62,9 @@ type SimulacionResult = {
   cantidadGanadores: number;
   reglasAplicadas: number;
   cuotasAplicadas?: number;
+  parcial?: boolean;
+  vacantes?: number;
+  faltantesDetalle?: string[];
   ganadoresSimulados: (Elegible & { orden: number })[];
 };
 
@@ -99,6 +102,10 @@ export function ElegiblesPreview({
     data: Elegible[];
     reglasAplicadas: number;
     cuotasResumen?: CuotaResumen[];
+    cantidadSolicitada?: number;
+    adjudicables?: number;
+    vacantes?: number;
+    alcanzaCompleta?: boolean;
   } | null>(null);
   const [simModalOpen, setSimModalOpen] = useState(false);
   const [simulacion, setSimulacion] = useState<SimulacionResult | null>(null);
@@ -173,6 +180,21 @@ export function ElegiblesPreview({
             </p>
           )}
         </div>
+
+        {result &&
+          !result.alcanzaCompleta &&
+          typeof result.adjudicables === "number" && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <p>
+                <strong>Candidatos insuficientes:</strong> se solicitan{" "}
+                {result.cantidadSolicitada} ganador(es) pero solo se pueden
+                adjudicar <strong>{result.adjudicables}</strong>. Si se ejecuta
+                ahora, quedará un sorteo parcial con {result.vacantes} premio(s)
+                vacante(s).
+              </p>
+            </div>
+          )}
 
         {result?.cuotasResumen && result.cuotasResumen.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/30 p-3 text-xs">
@@ -268,10 +290,37 @@ export function ElegiblesPreview({
               </DialogTitle>
               <DialogDescription>
                 {simulacion
-                  ? `Se seleccionaron al azar ${simulacion.cantidadGanadores} ganador(es) de ${simulacion.totalElegibles} candidato(s) elegible(s) (${simulacion.reglasAplicadas} regla(s) aplicada(s)).`
+                  ? simulacion.parcial
+                    ? `Sorteo parcial: solo se adjudicaron ${simulacion.ganadoresSimulados.length} de ${simulacion.cantidadGanadores} premio(s) entre ${simulacion.totalElegibles} candidato(s) elegible(s) (${simulacion.reglasAplicadas} regla(s) aplicada(s)).`
+                    : `Se seleccionaron al azar ${simulacion.cantidadGanadores} ganador(es) de ${simulacion.totalElegibles} candidato(s) elegible(s) (${simulacion.reglasAplicadas} regla(s) aplicada(s)).`
                   : "Resultado de prueba."}
               </DialogDescription>
             </DialogHeader>
+
+            {simulacion?.parcial &&
+              simulacion.faltantesDetalle &&
+              simulacion.faltantesDetalle.length > 0 && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">
+                      {simulacion.vacantes} premio(s) quedarían vacantes:
+                    </p>
+                    <ul className="mt-1 list-inside list-disc space-y-0.5">
+                      {simulacion.faltantesDetalle.map((d) => (
+                        <li key={d}>{d}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+            {simulacion && simulacion.ganadoresSimulados.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No hay candidatos elegibles: no se pudo seleccionar ningún
+                ganador en esta simulación.
+              </p>
+            )}
 
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-600 dark:text-amber-400">
               <strong>Ensayo sin efecto en la base de datos:</strong> estos

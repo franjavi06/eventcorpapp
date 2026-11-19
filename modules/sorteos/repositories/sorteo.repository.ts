@@ -49,7 +49,10 @@ export const sorteoRepository = {
             },
           },
         },
-        ejecuciones: { where: { estado: "COMPLETADA" }, select: { id: true } },
+        ejecuciones: {
+          where: { estado: { in: ["COMPLETADA", "PARCIAL"] } },
+          select: { id: true },
+        },
       },
     });
   },
